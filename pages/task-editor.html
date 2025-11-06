@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Task Editor - DeskAgent</title>
+  <link rel="stylesheet" href="task-editor.css">
+</head>
+<body>
+  <div class="editor-container">
+    <!-- Header -->
+    <header class="editor-header">
+      <div class="header-left">
+        <button id="backBtn" class="btn btn-secondary">← Back</button>
+        <input type="text" id="taskTitle" class="task-title-input" placeholder="Task Title" value="Untitled Task">
+      </div>
+      <div class="header-right">
+        <button id="saveTaskBtn" class="btn btn-primary">Save Task</button>
+      </div>
+    </header>
+
+    <div class="editor-body">
+      <!-- Left Sidebar - Available Scripts -->
+      <div class="sidebar">
+        <h3>Available Scripts</h3>
+        <div class="search-box">
+          <input type="text" id="scriptSearch" placeholder="Search scripts...">
+        </div>
+        <div id="availableScripts" class="script-palette">
+          <div class="loading">Loading scripts...</div>
+        </div>
+      </div>
+
+      <!-- Main Canvas -->
+      <div class="canvas-container">
+        <div class="canvas-toolbar">
+          <span class="toolbar-title">Task Flow</span>
+          <div class="toolbar-actions">
+            <button id="zoomInBtn" class="btn-icon" title="Zoom In">+</button>
+            <button id="zoomOutBtn" class="btn-icon" title="Zoom Out">−</button>
+            <button id="fitBtn" class="btn-icon" title="Fit to Screen">⊡</button>
+            <button id="clearBtn" class="btn-icon" title="Clear All">✕</button>
+          </div>
+        </div>
+        <div id="flowCanvas" class="flow-canvas">
+          <!-- Flow will be rendered here -->
+        </div>
+      </div>
+
+      <!-- Right Sidebar - Properties -->
+      <div class="properties-panel">
+        <h3>Properties</h3>
+        <div id="propertiesContent" class="properties-content">
+          <div class="empty-state">
+            Select a step to configure
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../scripts/task-model.js"></script>
+  <script src="../scripts/task-editor.js"></script>
+</body>
+</html>
