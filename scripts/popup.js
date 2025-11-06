@@ -4,6 +4,13 @@ class DeskAgentPopup {
     this.messages = [];
     this.isProcessing = false;
 
+    // AI Worker state
+    this.aiWorker = null;
+    this.modelLoaded = false;
+    this.isModelLoading = false;
+    this.workerMessageId = 0;
+    this.pendingWorkerMessages = new Map();
+
     this.init();
   }
 
@@ -32,8 +39,153 @@ class DeskAgentPopup {
       });
     });
 
+    // Initialize AI Worker
+    this.initializeAIWorker();
+
+    // Disable input until model loads
+    this.setInputEnabled(false);
+
     // Load initial state
     this.loadMessages();
+  }
+
+  initializeAIWorker() {
+    try {
+      // Create AI worker from bundled file
+      this.aiWorker = new Worker(chrome.runtime.getURL('scripts/ai-worker.bundled.js'));
+
+      // Set up message listener
+      this.aiWorker.addEventListener('message', (event) => {
+        this.handleWorkerMessage(event.data);
+      });
+
+      // Set up error listener
+      this.aiWorker.addEventListener('error', (error) => {
+        console.error('AI Worker error:', error);
+        this.updateModelStatus('error', 'Worker error: ' + error.message);
+        this.setInputEnabled(true); // Enable input even on error
+      });
+
+      console.log('✅ AI Worker initialized in popup');
+
+      // Automatically load the model
+      this.loadAIModel();
+    } catch (error) {
+      console.error('Failed to initialize AI worker:', error);
+      this.updateModelStatus('error', 'Failed to initialize worker');
+      this.setInputEnabled(true); // Enable input anyway (will fall back to text matching)
+    }
+  }
+
+  async loadAIModel() {
+    if (this.modelLoaded || this.isModelLoading) {
+      console.log('Model already loaded or loading');
+      return;
+    }
+
+    this.isModelLoading = true;
+    this.updateModelStatus('loading', 'Loading Granite 4.0 AI model...');
+
+    try {
+      const response = await this.sendWorkerMessage('LOAD_MODEL', {
+        modelId: 'onnx-community/granite-4.0-micro-ONNX-web'
+      });
+
+      if (response.type === 'MODEL_LOADED' && response.data.success) {
+        this.modelLoaded = true;
+        this.isModelLoading = false;
+        const device = response.data.device || 'unknown';
+        this.updateModelStatus('ready', `✅ AI model ready (${device})`);
+        this.setInputEnabled(true);
+        console.log('✅ Granite 4.0 model loaded successfully');
+      } else {
+        throw new Error('Model load failed');
+      }
+    } catch (error) {
+      console.error('Failed to load AI model:', error);
+      this.isModelLoading = false;
+      this.updateModelStatus('error', '⚠️ Model load failed (using text matching)');
+      this.setInputEnabled(true); // Enable input anyway
+    }
+  }
+
+  sendWorkerMessage(type, data = {}) {
+    return new Promise((resolve, reject) => {
+      if (!this.aiWorker) {
+        reject(new Error('Worker not initialized'));
+        return;
+      }
+
+      const messageId = ++this.workerMessageId;
+      const timeout = setTimeout(() => {
+        this.pendingWorkerMessages.delete(messageId);
+        reject(new Error('Worker message timeout'));
+      }, 300000); // 5 minutes for model loading
+
+      this.pendingWorkerMessages.set(messageId, { resolve, reject, timeout });
+
+      this.aiWorker.postMessage({ type, data, messageId });
+    });
+  }
+
+  handleWorkerMessage(message) {
+    const { messageId, type, data, error } = message;
+
+    // Handle progress updates (no messageId required)
+    if (type === 'PROGRESS' && data) {
+      const progress = Math.round(data.progress || 0);
+      this.updateModelStatus('loading', `Loading ${data.file}: ${progress}%`);
+      return;
+    }
+
+    // Handle pending message responses
+    if (messageId && this.pendingWorkerMessages.has(messageId)) {
+      const pending = this.pendingWorkerMessages.get(messageId);
+      clearTimeout(pending.timeout);
+      this.pendingWorkerMessages.delete(messageId);
+
+      if (error) {
+        pending.reject(new Error(error.message));
+      } else {
+        pending.resolve({ type, data });
+      }
+    }
+  }
+
+  setInputEnabled(enabled) {
+    const input = document.getElementById('commandInput');
+    const sendBtn = document.getElementById('sendBtn');
+
+    if (enabled) {
+      input.disabled = false;
+      input.placeholder = 'Type a command in natural language...';
+      sendBtn.disabled = false;
+    } else {
+      input.disabled = true;
+      input.placeholder = 'Loading AI model...';
+      sendBtn.disabled = true;
+    }
+  }
+
+  updateModelStatus(status, message) {
+    const statusElement = document.getElementById('modelStatus');
+    if (!statusElement) return;
+
+    statusElement.className = `model-status model-status-${status}`;
+    statusElement.textContent = message;
+
+    // Auto-hide success status after 3 seconds
+    if (status === 'ready') {
+      setTimeout(() => {
+        statusElement.style.opacity = '0';
+        setTimeout(() => {
+          statusElement.style.display = 'none';
+        }, 300);
+      }, 3000);
+    } else {
+      statusElement.style.display = 'block';
+      statusElement.style.opacity = '1';
+    }
   }
 
   async sendCommand() {
@@ -73,40 +225,28 @@ class DeskAgentPopup {
     // Help command
     if (lowerCommand.includes('help')) {
       this.addMessage('agent', `
-        <strong>DeskAgent Help</strong><br><br>
+        <strong>Choreograph Help</strong><br><br>
         I can help you automate browser tasks! Here's how:<br><br>
         <strong>Commands:</strong><br>
         • "show available scripts" - List all scripts<br>
         • "show available tasks" - List all task workflows<br>
-        • "load model" - Load AI model<br>
+        • "model status" - Check AI model status<br>
         • "execute [script name]" - Run a script<br>
         • Natural language commands that match your scripts<br><br>
         <strong>Features:</strong><br>
         • Upload JSON automation scripts in settings<br>
         • Create task workflows with multiple steps<br>
         • Use natural language to trigger scripts<br>
-        • AI-powered command matching
+        • AI-powered command matching with Granite 4.0 model<br>
+        • Model loads automatically when popup opens
       `, true);
       return true;
     }
 
-    // Load model command
-    if (lowerCommand.includes('load model')) {
-      this.addMessage('agent', 'Loading AI model... This may take a moment.');
-
-      try {
-        const response = await chrome.runtime.sendMessage({
-          type: 'LOAD_NLP_MODEL'
-        });
-
-        if (response.success) {
-          this.addMessage('agent', '✅ AI model loaded successfully! You can now use natural language commands.');
-        } else {
-          this.addMessage('agent', `❌ Failed to load model: ${response.error}`);
-        }
-      } catch (error) {
-        this.addMessage('agent', `❌ Error loading model: ${error.message}`);
-      }
+    // Model status command
+    if (lowerCommand.includes('model status') || lowerCommand.includes('ai status')) {
+      const status = this.modelLoaded ? 'loaded and ready' : (this.isModelLoading ? 'currently loading' : 'not loaded');
+      this.addMessage('agent', `AI Model Status: ${status}`);
       return true;
     }
 
@@ -278,15 +418,44 @@ class DeskAgentPopup {
     this.addMessage('agent', 'Processing your command...');
 
     try {
-      const response = await chrome.runtime.sendMessage({
-        type: 'PROCESS_NLP_COMMAND',
-        command: command
-      });
+      // Get available scripts
+      const scripts = await this.getStoredScripts();
 
-      if (response.success && response.result.matched) {
-        const { script, confidence, parameters } = response.result;
+      if (scripts.length === 0) {
+        this.addMessage('agent', 'No scripts available. Upload scripts in the settings page.');
+        return;
+      }
 
-        const confidencePercent = (confidence * 100).toFixed(1);
+      // Try using AI model if loaded
+      let result = null;
+      if (this.modelLoaded && this.aiWorker) {
+        try {
+          const response = await this.sendWorkerMessage('PROCESS_COMMAND', {
+            command,
+            scripts,
+            options: {
+              maxTokens: 10,
+              temperature: 0.3
+            }
+          });
+
+          if (response.type === 'COMMAND_RESULT' && response.data) {
+            result = response.data;
+          }
+        } catch (error) {
+          console.error('AI worker processing failed, falling back to text matching:', error);
+        }
+      }
+
+      // Fallback to text matching if AI model not available or failed
+      if (!result) {
+        result = await this.fallbackScriptMatching(command, scripts);
+      }
+
+      if (result.matched) {
+        const { script, confidence, parameters } = result;
+
+        const confidencePercent = ((confidence || 0.5) * 100).toFixed(1);
 
         // Store parameters for execution
         this.lastMatchedParameters = parameters || {};
@@ -329,6 +498,55 @@ class DeskAgentPopup {
       console.error('NLP processing error:', error);
       this.addMessage('agent', `Error: ${error.message}`);
     }
+  }
+
+  async fallbackScriptMatching(command, scripts) {
+    // Simple keyword-based matching as fallback
+    const lowerCommand = command.toLowerCase();
+    let bestMatch = null;
+    let bestScore = 0;
+
+    for (const script of scripts) {
+      const title = (script.title || '').toLowerCase();
+      const description = (script.description || '').toLowerCase();
+      const fileName = (script.fileName || '').toLowerCase();
+
+      let score = 0;
+
+      // Check for exact title match
+      if (lowerCommand.includes(title) && title.length > 2) {
+        score += 1.0;
+      }
+
+      // Check for word matches
+      const commandWords = lowerCommand.split(/\s+/);
+      const titleWords = title.split(/\s+/);
+      const descWords = description.split(/\s+/);
+
+      for (const word of commandWords) {
+        if (word.length < 3) continue;
+        if (titleWords.includes(word)) score += 0.3;
+        if (descWords.includes(word)) score += 0.2;
+        if (fileName.includes(word)) score += 0.2;
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = script;
+      }
+    }
+
+    // Threshold for accepting a match
+    if (bestScore > 0.3) {
+      return {
+        matched: true,
+        script: bestMatch,
+        confidence: Math.min(bestScore, 0.9),
+        reasoning: 'Text matching'
+      };
+    }
+
+    return { matched: false };
   }
 
   async executeScriptById(scriptId, customParameters = null) {
@@ -467,8 +685,8 @@ class DeskAgentPopup {
           messagesContainer.innerHTML = `
             <div class="empty-state">
               <div class="empty-state-icon">💬</div>
-              <div class="empty-state-text">Welcome to DeskAgent!</div>
-              <div class="empty-state-subtext">Type a command to get started</div>
+              <div class="empty-state-text">Welcome to Choreograph!</div>
+              <div class="empty-state-subtext">AI model is loading... You can type when ready</div>
             </div>
           `;
         }

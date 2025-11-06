@@ -1,5 +1,5 @@
-// DeskAgent Background Service Worker
-// AI model loading happens in config page (Web Worker support)
+// Choreograph Background Service Worker
+// AI model now runs in popup context with automatic loading
 
 class DeskAgentBackground {
   constructor() {
@@ -10,15 +10,16 @@ class DeskAgentBackground {
     this.debuggerVersion = '1.3';
     this.keepDebuggerAttached = true; // Don't auto-detach debugger
 
-    // AI model runs in config page (has Web Worker support)
+    // Legacy: AI model runs in config page (for testing/settings)
+    // Popup now has its own AI worker that loads automatically
     this.modelReadyInConfig = false;
 
     this.init();
   }
 
   async init() {
-    console.log('DeskAgent Background initialized');
-    console.log('💡 AI model can be loaded from Settings/Config page');
+    console.log('Choreograph Background initialized');
+    console.log('💡 Popup handles AI model loading automatically');
 
     // Listen for messages from popup and content scripts
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -524,18 +525,21 @@ class DeskAgentBackground {
   }
 
   async processNLPCommand(command, options = {}) {
+    // NOTE: This is a legacy fallback method. Popup now handles NLP processing
+    // with its own AI worker that loads automatically.
     const scripts = await this.getStoredScripts();
 
     if (scripts.length === 0) {
       return { matched: false, message: 'No scripts available' };
     }
 
-    console.log('🤖 Processing command:', command);
+    console.log('🤖 [Legacy] Processing command in background:', command);
+    console.log('💡 Note: Popup now handles AI processing directly');
 
-    // Try to use AI model in config page
+    // Try to use AI model in config page (legacy path)
     if (this.modelReadyInConfig) {
       try {
-        console.log('📤 Routing NLP processing to config page...');
+        console.log('📤 Routing NLP processing to config page (legacy)...');
 
         // Send command to config page for processing
         const response = await chrome.runtime.sendMessage({
@@ -557,8 +561,7 @@ class DeskAgentBackground {
         return this.fallbackScriptMatching(command, scripts);
       }
     } else {
-      console.warn('⚠️ AI model not loaded. Please open Settings page and click "Load NLP Model"');
-      console.warn('⚠️ Using fallback text matching');
+      console.log('⚠️ Using fallback text matching (AI model in popup)');
       return this.fallbackScriptMatching(command, scripts);
     }
   }

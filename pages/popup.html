@@ -319,28 +319,61 @@
     .script-suggestion-btn:hover {
       background: #1976d2;
     }
+
+    .model-status {
+      padding: 8px 20px;
+      background: white;
+      border-top: 1px solid #f0f0f0;
+      font-size: 12px;
+      text-align: center;
+      transition: opacity 0.3s;
+    }
+
+    .model-status-loading {
+      background: #fff3cd;
+      color: #856404;
+    }
+
+    .model-status-ready {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .model-status-error {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    #commandInput:disabled {
+      background: #f5f5f5;
+      color: #999;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>🤖 DeskAgent</h1>
-    <p>Natural language automation assistant</p>
+    <h1>🤖 Choreograph</h1>
+    <p>AI-powered automation assistant</p>
     <button class="settings-btn" id="settingsBtn" title="Settings">⚙️</button>
   </div>
 
   <div class="quick-actions">
     <div class="quick-action" data-command="show available scripts">📋 Scripts</div>
     <div class="quick-action" data-command="show available tasks">🎯 Tasks</div>
-    <div class="quick-action" data-command="load model">🧠 Load AI</div>
     <div class="quick-action" data-command="help">❓ Help</div>
+  </div>
+
+  <div id="modelStatus" class="model-status model-status-loading">
+    Loading AI model...
   </div>
 
   <div class="chat-container">
     <div class="messages" id="messages">
       <div class="empty-state">
         <div class="empty-state-icon">💬</div>
-        <div class="empty-state-text">Welcome to DeskAgent!</div>
-        <div class="empty-state-subtext">Type a command to get started</div>
+        <div class="empty-state-text">Welcome to Choreograph!</div>
+        <div class="empty-state-subtext">AI model is loading... You can type when ready</div>
       </div>
     </div>
 

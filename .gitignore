@@ -1,8 +1,8 @@
 node_modules/
 scripts/ai-worker.bundled.js
 scripts/ai-worker.bundled.js.LICENSE.txt
-scripts/ort*.wasm
-scripts/ort*.mjs
+scripts/*.wasm
+scripts/*.mjs
 scripts/*.LICENSE.txt
 package-lock.json
 *.log
