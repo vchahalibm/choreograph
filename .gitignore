@@ -3,6 +3,7 @@ scripts/ai-worker.bundled.js
 scripts/ai-worker.bundled.js.LICENSE.txt
 scripts/*.wasm
 scripts/*.mjs
+scripts/*.mjs.LICENSE.txt
 package-lock.json
 *.log
 .DS_Store
