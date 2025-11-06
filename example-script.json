@@ -1,0 +1,66 @@
+{
+  "title": "Google Search Example",
+  "description": "Navigate to Google and perform a search for Chrome DevTools",
+  "targetUrl": "https://www.google.com",
+  "steps": [
+    {
+      "type": "setViewport",
+      "width": 1280,
+      "height": 720,
+      "deviceScaleFactor": 1,
+      "isMobile": false,
+      "hasTouch": false,
+      "isLandscape": false
+    },
+    {
+      "type": "navigate",
+      "url": "https://www.google.com"
+    },
+    {
+      "type": "waitForElement",
+      "selectors": [
+        ["input[name='q']"],
+        ["textarea[name='q']"]
+      ],
+      "visible": true,
+      "timeout": 5000
+    },
+    {
+      "type": "click",
+      "selectors": [
+        ["input[name='q']"],
+        ["textarea[name='q']"]
+      ]
+    },
+    {
+      "type": "change",
+      "selectors": [
+        ["input[name='q']"],
+        ["textarea[name='q']"]
+      ],
+      "value": "Chrome DevTools Debugger API"
+    },
+    {
+      "type": "waitAfter",
+      "duration": 1000
+    },
+    {
+      "type": "keyDown",
+      "key": "Enter",
+      "selectors": [
+        ["#APjFqb"],
+        ["textarea[name='q']"],
+        ["input[name='q']"]
+      ],
+      "target": "main"
+    },
+    {
+      "type": "waitForElement",
+      "selectors": [
+        ["#search"]
+      ],
+      "visible": true,
+      "timeout": 10000
+    }
+  ]
+}

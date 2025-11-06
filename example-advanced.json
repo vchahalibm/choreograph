@@ -1,0 +1,186 @@
+{
+  "title": "Advanced Automation Example",
+  "description": "Demonstrates loops, conditions, child scripts, and element finding",
+  "targetUrl": "https://example.com",
+  "steps": [
+    {
+      "type": "setViewport",
+      "width": 1920,
+      "height": 1080,
+      "deviceScaleFactor": 1,
+      "isMobile": false,
+      "hasTouch": false,
+      "isLandscape": true
+    },
+    {
+      "type": "navigate",
+      "url": "https://example.com"
+    },
+    {
+      "type": "waitForElement",
+      "selectors": [["body"]],
+      "visible": true,
+      "timeout": 5000
+    },
+    {
+      "type": "FIND_ELEMENT",
+      "selectors": [
+        ["#main-content"],
+        [".content-area"]
+      ],
+      "storeAs": "mainContent",
+      "comment": "Find and store the main content area"
+    },
+    {
+      "type": "GOTO_ELEMENT",
+      "variableName": "mainContent",
+      "smooth": true,
+      "comment": "Scroll to the stored element smoothly"
+    },
+    {
+      "type": "childSteps",
+      "comment": "Example of conditional execution",
+      "condition": {
+        "operator": "exists",
+        "field": ".login-button"
+      },
+      "steps": [
+        {
+          "type": "click",
+          "selectors": [[".login-button"]]
+        },
+        {
+          "type": "waitAfter",
+          "duration": 1000
+        },
+        {
+          "type": "change",
+          "selectors": [["#username"]],
+          "value": "testuser"
+        },
+        {
+          "type": "change",
+          "selectors": [["#password"]],
+          "value": "testpass"
+        }
+      ]
+    },
+    {
+      "type": "childSteps",
+      "comment": "Loop through multiple items",
+      "loop": {
+        "iterations": 5,
+        "waitBetween": 2000,
+        "condition": {
+          "operator": "exists",
+          "field": ".item-card"
+        },
+        "steps": [
+          {
+            "type": "FIND_ELEMENT",
+            "selectors": [[".item-card"]],
+            "storeAs": "currentItem"
+          },
+          {
+            "type": "GOTO_ELEMENT",
+            "variableName": "currentItem",
+            "smooth": true
+          },
+          {
+            "type": "click",
+            "selectors": [[".item-card .expand-button"]]
+          },
+          {
+            "type": "waitForElement",
+            "selectors": [[".item-details"]],
+            "visible": true,
+            "timeout": 3000
+          },
+          {
+            "type": "executeScript",
+            "scriptId": "extract-data",
+            "comment": "Execute a stored JavaScript to extract data"
+          }
+        ]
+      }
+    },
+    {
+      "type": "waitForExpression",
+      "expression": "document.querySelectorAll('.processed').length >= 5",
+      "timeout": 10000,
+      "comment": "Wait until at least 5 items are processed"
+    },
+    {
+      "type": "scroll",
+      "x": 0,
+      "y": 0,
+      "comment": "Scroll back to top"
+    },
+    {
+      "type": "childSteps",
+      "comment": "Nested loops example",
+      "loop": {
+        "iterations": 3,
+        "waitBetween": 1000,
+        "steps": [
+          {
+            "type": "click",
+            "selectors": [[".category-tab"]],
+            "condition": {
+              "operator": "exists",
+              "field": ".category-tab"
+            }
+          },
+          {
+            "type": "childSteps",
+            "loop": {
+              "iterations": 2,
+              "steps": [
+                {
+                  "type": "keyDown",
+                  "key": "ArrowDown",
+                  "target": "main"
+                },
+                {
+                  "type": "keyUp",
+                  "key": "ArrowDown",
+                  "target": "main"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "doubleClick",
+      "selectors": [[".editable-field"]],
+      "offsetX": 50,
+      "offsetY": 20
+    },
+    {
+      "type": "change",
+      "selectors": [[".editable-field input"]],
+      "value": "Updated value"
+    },
+    {
+      "type": "hover",
+      "selectors": [[".save-button"]],
+      "comment": "Hover to show tooltip"
+    },
+    {
+      "type": "click",
+      "selectors": [[".save-button"]]
+    },
+    {
+      "type": "waitForElement",
+      "selectors": [[".success-message"]],
+      "visible": true,
+      "timeout": 5000,
+      "condition": {
+        "operator": "exists",
+        "field": ".save-button"
+      }
+    }
+  ]
+}

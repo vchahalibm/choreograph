@@ -1,0 +1,143 @@
+{
+    "title": "GoogleSearchAutomation",
+  "targetUrl": "https://www.google.com",
+  "description": "GSimple test to find Google search box, enter text and click search item",
+    "steps": [
+        {
+            "type": "setViewport",
+            "width": 1280,
+            "height": 720,
+            "deviceScaleFactor": 1,
+            "isMobile": false,
+            "hasTouch": false,
+            "isLandscape": false
+        },
+        {
+            "type": "navigate",
+            "url": "https://www.google.com/"
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "aria/Search[role=\"combobox\"]"
+                ],
+                [
+                    "#APjFqb"
+                ],
+                [
+                    "xpath///*[@id=\"APjFqb\"]"
+                ],
+                [
+                    "pierce/#APjFqb"
+                ]
+            ],
+            "offsetY": 20,
+            "offsetX": 257
+        },
+        {
+            "type": "change",
+            "value": "Dev tools API",
+            "selectors": [
+                [
+                    "aria/Search[role=\"combobox\"]"
+                ],
+                [
+                    "#APjFqb"
+                ],
+                [
+                    "xpath///*[@id=\"APjFqb\"]"
+                ],
+                [
+                    "pierce/#APjFqb"
+                ]
+            ],
+            "target": "main"
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "aria/Search[role=\"combobox\"]"
+                ],
+                [
+                    "#APjFqb"
+                ],
+                [
+                    "xpath///*[@id=\"APjFqb\"]"
+                ],
+                [
+                    "pierce/#APjFqb"
+                ]
+            ],
+            "offsetY": 26,
+            "offsetX": 235
+        },
+        {
+            "type": "keyDown",
+            "target": "main",
+            "key": "Enter",
+            "assertedEvents": [
+                {
+                    "type": "navigation",
+                    "url": "https://www.google.com/search?q=Dev+tools+API&sca_esv=f5c9479add9f09fd&source=hp&ei=JW7iaO3VFqeqvr0P8uzZUA&iflsig=AOw8s4IAAAAAaOJ8NQvPOkr4zofoscy6KwSjArgymSIp&ved=0ahUKEwit_MbpkI2QAxUnla8BHXJ2FgoQ4dUDCBA&uact=5&oq=Dev+tools+API&gs_lp=Egdnd3Mtd2l6Ig1EZXYgdG9vbHMgQVBJMgUQABiABDIGEAAYFhgeMgYQABgWGB4yBhAAGBYYHjIGEAAYFhgeMgYQABgWGB4yBhAAGBYYHjIGEAAYFhgeMgYQABgWGB4yBhAAGBYYHkiwoQVQAFjXhQVwA3gAkAEAmAGdAaABrgyqAQQyLjEyuAEDyAEA-AEBmAIRoAKcDagCCsICBRAhGKABwgIKEAAYAxjqAhiPAcICCxAAGIAEGLEDGIMBwgIIEAAYgAQYsQPCAg4QLhiABBixAxjRAxjHAcICERAuGIAEGLEDGNEDGIMBGMcBwgILEC4YgAQYsQMYigXCAgUQLhiABMICBBAAGAPCAggQLhiABBixA8ICDhAuGIAEGLEDGIMBGIoFwgIOEC4YgAQYxwEYjgUYrwHCAgsQLhiABBixAxjUAsICCxAuGIAEGLEDGIMBwgIOEAAYgAQYsQMYgwEYigXCAgoQABiABBixAxgKwgIIEC4YgAQY5QTCAgcQABiABBgKwgILEC4YgAQY0QMYxwHCAgsQLhiABBjHARivAcICCBAAGBYYChgemAMF8QU1D8NKaPNrcJIHBDMuMTSgB_uDAbIHBDAuMTS4B40NwgcGMC40LjEzyAdP&sclient=gws-wiz",
+                    "title": "Dev tools API - Google Search"
+                }
+            ]
+        },
+        {
+            "type": "keyUp",
+            "key": "Enter",
+            "target": "main"
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "div.lACQkd svg"
+                ],
+                [
+                    "xpath///*[@id=\"_fW7iaMGoA46N4-EPoIv5wAU_1\"]/div[1]/div/div[3]/div/div/div/span/span[2]/svg"
+                ],
+                [
+                    "pierce/div.lACQkd svg"
+                ]
+            ],
+            "offsetY": 9.9609375,
+            "offsetX": 9.59375
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "aria/Chrome DevTools Protocol - GitHub Pages"
+                ],
+                [
+                    "div:nth-of-type(9) h3"
+                ],
+                [
+                    "xpath///*[@id=\"rso\"]/div[9]/div/div/div/div[1]/div/div/span/a/h3"
+                ],
+                [
+                    "pierce/div:nth-of-type(9) h3"
+                ],
+                [
+                    "text/Chrome DevTools Protocol -"
+                ]
+            ],
+            "offsetY": 17.84375,
+            "offsetX": 316,
+            "assertedEvents": [
+                {
+                    "type": "navigation",
+                    "url": "https://chromedevtools.github.io/devtools-protocol/",
+                    "title": ""
+                }
+            ]
+        }
+    ]
+}

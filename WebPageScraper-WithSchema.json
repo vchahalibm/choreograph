@@ -1,0 +1,80 @@
+{
+  "title": "Web Page Scraper",
+  "description": "Opens a URL and extracts page title, headings, and text content",
+  "parameters": {
+    "url": "https://example.com"
+  },
+  "outputSchema": {
+    "description": "Scraped web page data including title, URL, headings, and content",
+    "fields": [
+      {
+        "name": "pageTitle",
+        "type": "string",
+        "description": "HTML page title from <title> tag",
+        "path": "$.page.title"
+      },
+      {
+        "name": "pageUrl",
+        "type": "string",
+        "description": "Current URL of the page",
+        "path": "$.page.url"
+      },
+      {
+        "name": "mainHeading",
+        "type": "string",
+        "description": "First H1 heading found on the page",
+        "path": "$.page.mainHeading"
+      },
+      {
+        "name": "allHeadings",
+        "type": "array",
+        "description": "Array of all H1, H2, H3 headings",
+        "path": "$.page.headings"
+      },
+      {
+        "name": "bodyText",
+        "type": "string",
+        "description": "Main text content extracted from page body",
+        "path": "$.page.bodyText"
+      },
+      {
+        "name": "linkCount",
+        "type": "number",
+        "description": "Number of links found on the page",
+        "path": "$.page.linkCount"
+      },
+      {
+        "name": "links",
+        "type": "array",
+        "description": "Array of all link URLs found on page",
+        "path": "$.page.links"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "type": "setViewport",
+      "width": 1280,
+      "height": 720,
+      "deviceScaleFactor": 1,
+      "isMobile": false,
+      "hasTouch": false,
+      "isLandscape": false
+    },
+    {
+      "type": "navigate",
+      "url": "{{url}}",
+      "comment": "Navigate to the target URL"
+    },
+    {
+      "type": "waitForNavigation",
+      "timeout": 10000,
+      "comment": "Wait for page to fully load"
+    },
+    {
+      "type": "waitAfter",
+      "duration": 2000,
+      "comment": "Wait for dynamic content to load"
+    }
+  ]
+}

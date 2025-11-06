@@ -1,0 +1,23 @@
+{
+  "title": "Test Google - Find Search Box",
+  "description": "Simple test to find Google search box",
+  "targetUrl": "https://www.google.com",
+  "steps": [
+    {
+      "type": "navigate",
+      "url": "https://www.google.com"
+    },
+    {
+      "type": "waitForElement",
+      "selectors": [
+        ["textarea[name='q']"],
+        ["input[name='q']"],
+        ["textarea[title='Search']"],
+        ["textarea[aria-label='Search']"],
+        ["#APjFqb"]
+      ],
+      "visible": true,
+      "timeout": 10000
+    }
+  ]
+}

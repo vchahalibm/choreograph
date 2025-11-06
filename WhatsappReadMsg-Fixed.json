@@ -1,0 +1,132 @@
+{
+  "title": "WhatsappReadMsg - Fixed",
+  "targetUrl": "https://web.whatsapp.com",
+  "description": "Updated with current WhatsApp selectors - supports variables: {{searchText1}}, {{searchText2}}",
+  "parameters": {
+    "searchText1": "R94",
+    "searchText2": "Rustambagh"
+  },
+  "steps": [
+    {
+      "type": "setViewport",
+      "width": 972,
+      "height": 643,
+      "deviceScaleFactor": 1,
+      "isMobile": false,
+      "hasTouch": false,
+      "isLandscape": false
+    },
+    {
+      "type": "navigate",
+      "url": "https://web.whatsapp.com/"
+    },
+    {
+      "type": "waitForElement",
+      "timeout": 10000,
+      "selectors": [
+        ["div[role='textbox'][contenteditable='true']"],
+        ["div[data-tab='3']"],
+        ["aria/Search input textbox"],
+        ["#side div[contenteditable='true']"]
+      ],
+      "visible": true,
+      "comment": "Wait for search box to appear"
+    },
+    {
+      "type": "click",
+      "selectors": [
+        ["div[role='textbox'][contenteditable='true']"],
+        ["div[data-tab='3']"],
+        ["#side div[contenteditable='true']"]
+      ],
+      "comment": "Click search box"
+    },
+    {
+      "type": "change",
+      "value": "{{searchText1}}",
+      "selectors": [
+        ["div[role='textbox'][contenteditable='true']"],
+        ["div[data-tab='3']"],
+        ["#side div[contenteditable='true']"]
+      ],
+      "comment": "Type search text 1 in search"
+    },
+    {
+      "type": "waitAfter",
+      "duration": 1000,
+      "comment": "Wait for search results to appear"
+    },
+    {
+      "type": "waitForElement",
+      "selectors": [
+        ["button[aria-label*='Cancel']"],
+        ["button[aria-label*='Clear']"],
+        ["span[data-icon='x-alt']"]
+      ],
+      "visible": true,
+      "timeout": 5000,
+      "comment": "Wait for cancel/clear button"
+    },
+    {
+      "type": "click",
+      "selectors": [
+        ["button[aria-label*='Cancel']"],
+        ["button[aria-label*='Clear']"],
+        ["span[data-icon='x-alt']"]
+      ],
+      "comment": "Click cancel to clear search"
+    },
+    {
+      "type": "waitAfter",
+      "duration": 500,
+      "comment": "Wait for search box to clear"
+    },
+    {
+      "type": "click",
+      "selectors": [
+        ["div[role='textbox'][contenteditable='true']"],
+        ["div[data-tab='3']"]
+      ],
+      "comment": "Click search box again"
+    },
+    {
+      "type": "change",
+      "value": "{{searchText2}}",
+      "selectors": [
+        ["div[role='textbox'][contenteditable='true']"],
+        ["div[data-tab='3']"]
+      ],
+      "comment": "Type search text 2 in search"
+    },
+    {
+      "type": "waitAfter",
+      "duration": 1500,
+      "comment": "Wait for search results"
+    },
+    {
+      "type": "waitForElement",
+      "selectors": [
+        ["#pane-side div[role='row']"],
+        ["div[data-testid='cell-frame-container']"]
+      ],
+      "visible": true,
+      "timeout": 5000,
+      "comment": "Wait for chat result to appear"
+    },
+    {
+      "type": "click",
+      "selectors": [
+        ["#pane-side div[role='row']:nth-child(2) div[role='gridcell']"],
+        ["div[role='grid'] > div[role='row']:th-child(2) div[role='gridcell']"],
+        ["#pane-side div[role='row']:th-child(2)"],
+        []
+      ],
+      "comment": "Click gridcell inside first search result row"
+    },
+    {
+      "type": "waitAfter",
+      "duration": 1000,
+      "comment": "Wait for chat to load"
+    }
+  ]
+}

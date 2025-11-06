@@ -1,0 +1,105 @@
+{
+  "title": "GoogleSearchAutomation - Fixed",
+  "targetUrl": "https://www.google.com",
+  "description": "Fixed version with navigation waits and stable selectors",
+  "steps": [
+    {
+      "type": "setViewport",
+      "width": 1280,
+      "height": 720,
+      "deviceScaleFactor": 1,
+      "isMobile": false,
+      "hasTouch": false,
+      "isLandscape": false
+    },
+    {
+      "type": "navigate",
+      "url": "https://www.google.com/"
+    },
+    {
+      "type": "waitForElement",
+      "selectors": [
+        ["#APjFqb"],
+        ["textarea[name='q']"],
+        ["aria/Search[role=\"combobox\"]"]
+      ],
+      "visible": true,
+      "timeout": 5000
+    },
+    {
+      "type": "click",
+      "selectors": [
+        ["#APjFqb"],
+        ["aria/Search[role=\"combobox\"]"]
+      ],
+      "offsetY": 20,
+      "offsetX": 257
+    },
+    {
+      "type": "change",
+      "value": "Dev tools API",
+      "selectors": [
+        ["#APjFqb"],
+        ["aria/Search[role=\"combobox\"]"]
+      ],
+      "target": "main"
+    },
+    {
+      "type": "click",
+      "selectors": [
+        ["#APjFqb"]
+      ],
+      "offsetY": 26,
+      "offsetX": 235
+    },
+    {
+      "type": "keyDown",
+      "target": "main",
+      "key": "Enter",
+      "selectors": [
+        ["#APjFqb"]
+      ]
+    },
+    {
+      "type": "waitForElement",
+      "selectors": [
+        ["#search"],
+        ["#rso"]
+      ],
+      "visible": true,
+      "timeout": 10000,
+      "comment": "Wait for search results page to load"
+    },
+    {
+      "type": "waitAfter",
+      "duration": 1500,
+      "comment": "Extra wait for results to fully render"
+    },
+    {
+      "type": "scroll",
+      "x": 0,
+      "y": 300,
+      "comment": "Scroll down to see more results"
+    },
+    {
+      "type": "waitForElement",
+      "selectors": [
+        ["text/Chrome DevTools Protocol"],
+        ["aria/Chrome DevTools Protocol - GitHub Pages"]
+      ],
+      "visible": true,
+      "timeout": 5000,
+      "comment": "Wait for the target result to be visible"
+    },
+    {
+      "type": "click",
+      "target": "main",
+      "selectors": [
+        ["text/Chrome DevTools Protocol"],
+        ["aria/Chrome DevTools Protocol - GitHub Pages"],
+        ["h3:has-text('DevTools')"]
+      ],
+      "comment": "Click the Chrome DevTools Protocol result"
+    }
+  ]
+}

@@ -1,0 +1,138 @@
+{
+    "title": "WhatsappReadMsg",
+    "targetUrl": "https://web.whatsapp.com",
+    "steps": [
+        {
+            "type": "setViewport",
+            "width": 972,
+            "height": 643,
+            "deviceScaleFactor": 1,
+            "isMobile": false,
+            "hasTouch": false,
+            "isLandscape": false
+        },
+        {
+            "type": "navigate",
+            "url": "https://web.whatsapp.com/",
+            "assertedEvents": [
+                {
+                    "type": "navigation",
+                    "url": "https://web.whatsapp.com/",
+                    "title": "(7) WhatsApp"
+                }
+            ]
+        },
+        {
+            "type": "waitForElement",
+            "timeout": 10000,
+            "target": "main",
+            "selectors": [
+                [
+                    "aria/Search input textbox",
+                    "aria/[role=\"paragraph\"]"
+                ],
+                "p",
+                "xpath///*[@id=\"side\"]/div[1]/div/div[2]/div/div/div[1]/p",
+                "pierce/p"
+            ]
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "aria/Search input textbox",
+                    "aria/[role=\"paragraph\"]"
+                ],
+                [
+                    "p"
+                ],
+                [
+                    "xpath///*[@id=\"side\"]/div[1]/div/div[2]/div/div/div[1]/p"
+                ],
+                [
+                    "pierce/p"
+                ]
+            ],
+            "offsetY": 11.0234375,
+            "offsetX": 85
+        },
+        {
+            "type": "change",
+            "value": "R94",
+            "selectors": [
+                [
+                    "aria/Search input textbox",
+                    "aria/[role=\"paragraph\"]"
+                ],
+                [
+                    "p"
+                ],
+                [
+                    "xpath///*[@id=\"side\"]/div[1]/div/div[2]/div/div/div[1]/p"
+                ],
+                [
+                    "pierce/p"
+                ]
+            ],
+            "target": "main"
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "aria/Cancel search",
+                    "aria/[role=\"generic\"]"
+                ],
+                [
+                    "div._ak9t span span"
+                ],
+                [
+                    "xpath///*[@id=\"side\"]/div[1]/div/div[2]/span/button/span"
+                ],
+                [
+                    "pierce/div._ak9t span span"
+                ]
+            ],
+            "offsetY": 10,
+            "offsetX": 11.203125
+        },
+        {
+            "type": "change",
+            "value": "Rustambagh",
+            "selectors": [
+                [
+                    "aria/Search input textbox"
+                ],
+                [
+                    "div.x1hx0egp"
+                ],
+                [
+                    "xpath///*[@id=\"side\"]/div[1]/div/div[2]/div/div/div[1]"
+                ],
+                [
+                    "pierce/div.x1hx0egp"
+                ]
+            ],
+            "target": "main"
+        },
+        {
+            "type": "click",
+            "target": "main",
+            "selectors": [
+                [
+                    "#pane-side > div:nth-of-type(1) > div > div > div:nth-of-type(2) div._ak8o > div > span"
+                ],
+                [
+                    "xpath///*[@id=\"pane-side\"]/div[1]/div/div/div[2]/div/div/div/div[2]/div[2]/div/span"
+                ],
+                [
+                    "pierce/#pane-side > div:nth-of-type(1) > div > div > div:nth-of-type(2) div._ak8o > div > span"
+                ]
+            ],
+            "offsetY": 22.5078125,
+            "offsetX": 119
+        }
+    ]
+}

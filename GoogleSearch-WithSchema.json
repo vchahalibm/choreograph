@@ -1,0 +1,110 @@
+{
+  "title": "Google Search",
+  "targetUrl": "https://www.google.com",
+  "description": "Performs a Google search and extracts the first result",
+  "parameters": {
+    "query": "weather today"
+  },
+  "outputSchema": {
+    "description": "Google search results with title, URL, and snippet from first result",
+    "fields": [
+      {
+        "name": "firstResultTitle",
+        "type": "string",
+        "description": "Title of the first search result",
+        "path": "$.search.firstResult.title"
+      },
+      {
+        "name": "firstResultUrl",
+        "type": "string",
+        "description": "URL of the first search result",
+        "path": "$.search.firstResult.url"
+      },
+      {
+        "name": "firstResultSnippet",
+        "type": "string",
+        "description": "Description snippet from first result",
+        "path": "$.search.firstResult.snippet"
+      },
+      {
+        "name": "allResults",
+        "type": "array",
+        "description": "Array of all search results on the page",
+        "path": "$.search.results"
+      },
+      {
+        "name": "searchQuery",
+        "type": "string",
+        "description": "The search query that was used",
+        "path": "$.search.query"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "type": "setViewport",
+      "width": 1280,
+      "height": 720,
+      "deviceScaleFactor": 1,
+      "isMobile": false,
+      "hasTouch": false,
+      "isLandscape": false
+    },
+    {
+      "type": "navigate",
+      "url": "https://www.google.com"
+    },
+    {
+      "type": "waitForElement",
+      "selectors": [
+        ["textarea[name='q']"],
+        ["input[name='q']"]
+      ],
+      "visible": true,
+      "timeout": 5000,
+      "comment": "Wait for search box"
+    },
+    {
+      "type": "click",
+      "selectors": [
+        ["textarea[name='q']"],
+        ["input[name='q']"]
+      ],
+      "comment": "Click search box"
+    },
+    {
+      "type": "change",
+      "value": "{{query}}",
+      "selectors": [
+        ["textarea[name='q']"],
+        ["input[name='q']"]
+      ],
+      "comment": "Type search query"
+    },
+    {
+      "type": "keyDown",
+      "key": "Enter",
+      "comment": "Press Enter to search"
+    },
+    {
+      "type": "waitForNavigation",
+      "timeout": 10000,
+      "comment": "Wait for search results page"
+    },
+    {
+      "type": "waitForElement",
+      "selectors": [
+        ["div#search"],
+        ["div#rso"]
+      ],
+      "visible": true,
+      "timeout": 5000,
+      "comment": "Wait for search results"
+    },
+    {
+      "type": "waitAfter",
+      "duration": 1000,
+      "comment": "Wait for results to stabilize"
+    }
+  ]
+}
