@@ -7,6 +7,12 @@ let model = null;
 let modelId = null;
 let isLoading = false;
 
+// Configure Transformers.js environment for local ONNX runtime
+// This prevents CDN requests and uses bundled WASM files
+env.backends.onnx.wasm.wasmPaths = self.location.href.replace(/\/[^\/]+$/, '/');
+env.allowRemoteModels = true;
+env.allowLocalModels = false;
+
 // Export to global scope for use in Web Worker
 self.Transformers = {
   AutoTokenizer,
