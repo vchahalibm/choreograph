@@ -1,19 +1,18 @@
-// AI Worker - Runs AI model in Web Worker context
-// Uses dynamic import() to load Transformers.js (works in workers, not service workers)
-//
-// NOTE: This worker currently loads the pre-bundled transformers.js file.
-// For proper Granite 4.0 support with the latest @huggingface/transformers:
-// 1. Run: npm install
-// 2. Run: npm run build
-// 3. This creates scripts/ai-worker.bundled.js
-// 4. Update config.js to load 'ai-worker.bundled.js' instead
-// See README_BUILD.md for full instructions.
+// AI Worker Source - Webpack Entry Point for Granite 4.0 Model
+// This file will be bundled by webpack with @huggingface/transformers
+import { AutoTokenizer, AutoModelForCausalLM, env } from '@huggingface/transformers';
 
 let tokenizer = null;
 let model = null;
 let modelId = null;
 let isLoading = false;
-let Transformers = null;
+
+// Export to global scope for use in Web Worker
+self.Transformers = {
+  AutoTokenizer,
+  AutoModelForCausalLM,
+  env
+};
 
 // Listen for messages
 self.addEventListener('message', async (event) => {
@@ -41,36 +40,6 @@ self.addEventListener('message', async (event) => {
   }
 });
 
-// Load Transformers.js library from local file (bundled with extension)
-async function loadTransformersLibrary() {
-  if (Transformers) {
-    return Transformers;
-  }
-
-  console.log('📦 [AI Worker] Loading Transformers.js library from local file...');
-
-  try {
-    // Load from local file bundled with extension - no CSP restrictions!
-    // Use relative path from worker location
-    console.log('   📂 Loading from: ./transformers.js');
-    self.importScripts('./transformers.js');
-
-    // Access from global scope after importScripts
-    Transformers = self.Transformers;
-
-    if (!Transformers) {
-      throw new Error('Transformers.js not found in global scope after importScripts');
-    }
-
-    console.log('✅ [AI Worker] Transformers.js library loaded successfully');
-    console.log('   📋 Available exports:', Object.keys(Transformers).slice(0, 10).join(', '));
-    return Transformers;
-  } catch (error) {
-    console.error('❌ [AI Worker] Failed to load Transformers.js:', error);
-    throw new Error(`Failed to load Transformers.js library: ${error.message}`);
-  }
-}
-
 // Load the Granite 4.0 model
 async function handleLoadModel(data, messageId) {
   if (model && tokenizer) {
@@ -96,10 +65,6 @@ async function handleLoadModel(data, messageId) {
   try {
     console.log('🚀 [AI Worker] Loading Granite 4.0 model...');
     console.log('📦 [AI Worker] Model:', modelId);
-
-    // Load Transformers.js library first
-    const lib = await loadTransformersLibrary();
-    const { AutoTokenizer, AutoModelForCausalLM, env } = lib;
 
     // Configure Transformers.js
     env.allowLocalModels = false;
@@ -216,7 +181,7 @@ Answer with just the number:`;
           script: matchedScript,
           parameters,
           confidence: 0.8,
-          reasoning: 'Matched using Granite 4.0 model in Web Worker'
+          reasoning: 'Matched using Granite 4.0 model'
         });
         return;
       }
@@ -273,7 +238,7 @@ function handleCheckStatus(messageId) {
     modelLoaded: !!(model && tokenizer),
     isLoading,
     modelId,
-    transformersLoaded: !!Transformers
+    transformersLoaded: true
   });
 }
 
@@ -304,4 +269,4 @@ function sendError(messageId, message, stack) {
   });
 }
 
-console.log('✅ [AI Worker] Web Worker initialized and ready');
+console.log('✅ [AI Worker] Web Worker initialized and ready (Webpack bundled with Granite 4.0 support)');

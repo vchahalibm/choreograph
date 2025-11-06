@@ -1,0 +1,5 @@
+node_modules/
+scripts/ai-worker.bundled.js
+package-lock.json
+*.log
+.DS_Store

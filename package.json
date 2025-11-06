@@ -1,0 +1,22 @@
+{
+  "name": "choreograph-ai-extension",
+  "version": "1.0.0",
+  "description": "Chrome extension with Granite 4.0 AI model support",
+  "main": "index.js",
+  "scripts": {
+    "build": "webpack --mode production",
+    "build:dev": "webpack --mode development",
+    "watch": "webpack --watch --mode development"
+  },
+  "keywords": ["chrome-extension", "ai", "granite", "transformers"],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4",
+    "copy-webpack-plugin": "^11.0.0"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.1.0"
+  }
+}
