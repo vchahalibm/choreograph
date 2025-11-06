@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "DeskAgent",
+  "name": "Choreograph",
   "version": "1.0.0",
-  "description": "Automated browser actions using Chrome Debugger API with NLP command interface",
+  "description": "Automated browser actions using Chrome Debugger API with Granite 4.0 AI-powered natural language interface",
   "permissions": [
     "debugger",
     "tabs",
