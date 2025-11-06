@@ -49,7 +49,10 @@
     {
       "resources": [
         "scripts/injected.js",
-        "scripts/ai-worker.js"
+        "scripts/ai-worker.js",
+        "scripts/ai-worker.bundled.js",
+        "scripts/*.wasm",
+        "scripts/*.mjs"
       ],
       "matches": ["<all_urls>"]
     }

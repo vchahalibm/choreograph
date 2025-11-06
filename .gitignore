@@ -1,5 +1,8 @@
 node_modules/
 scripts/ai-worker.bundled.js
+scripts/ai-worker.bundled.js.LICENSE.txt
+scripts/*.wasm
+scripts/*.mjs
 package-lock.json
 *.log
 .DS_Store

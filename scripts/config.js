@@ -360,7 +360,8 @@ class ConfigManager {
       // Create Web Worker directly in config page (no CSP restrictions here!)
       if (!this.aiWorker) {
         console.log('Creating Web Worker for AI model...');
-        this.aiWorker = new Worker(chrome.runtime.getURL('scripts/ai-worker.js'));
+        // Use webpack-bundled worker with @huggingface/transformers for Granite 4.0 support
+        this.aiWorker = new Worker(chrome.runtime.getURL('scripts/ai-worker.bundled.js'));
 
         // Listen for messages from worker
         this.aiWorker.addEventListener('message', (event) => {
