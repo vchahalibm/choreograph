@@ -44,8 +44,8 @@ async function loadTransformersLibrary() {
   try {
     // Load from local file bundled with extension - no CSP restrictions!
     // Use relative path from worker location
-    console.log('   📂 Loading from: ./transformers.min.js');
-    self.importScripts('./transformers.min.js');
+    console.log('   📂 Loading from: ./transformers.js');
+    self.importScripts('./transformers.js');
 
     // Access from global scope after importScripts
     Transformers = self.Transformers;
