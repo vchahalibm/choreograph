@@ -126,83 +126,425 @@ async function handleLoadModel(data, messageId) {
   }
 }
 
-// Process natural language command
+// Process natural language command with universal intent classification
 async function handleProcessCommand(data, messageId) {
   if (!model || !tokenizer) {
     sendError(messageId, 'Model not loaded. Call LOAD_MODEL first.');
     return;
   }
 
-  const { command, scripts, options = {} } = data;
-
-  if (!scripts || scripts.length === 0) {
-    sendResponse(messageId, 'COMMAND_RESULT', {
-      matched: false,
-      message: 'No scripts available'
-    });
-    return;
-  }
+  const { command, scripts = [], options = {} } = data;
 
   console.log('🤖 [AI Worker] Processing command:', command);
 
   try {
-    // Build prompt for script matching
-    const scriptsList = scripts.map((s, i) => `${i + 1}. ${s.title}: ${s.description || ''}`).join('\n');
+    // Step 1: Classify intent
+    const classification = await classifyIntent(command, scripts, options);
+    console.log('📊 [AI Worker] Intent classification:', classification.intent.primary_category);
 
-    const prompt = `Available automation scripts:
-${scriptsList}
+    // Step 2: Route to appropriate handler based on intent
+    const result = await routeToHandler(classification, command, scripts, options);
 
-User wants to: ${command}
-
-Match the user's request to a script number (1-${scripts.length}) or 0 if no match.
-Answer with just the number:`;
-
-    // Tokenize and generate
-    const inputs = tokenizer(prompt);
-    const outputs = await model.generate({
-      ...inputs,
-      max_new_tokens: options.maxTokens || 10,
-      do_sample: false,
-      temperature: options.temperature || 0.3
-    });
-
-    // Decode output
-    const generatedText = tokenizer.decode(outputs[0], { skip_special_tokens: true });
-    const newText = generatedText.slice(prompt.length).trim();
-    console.log('🤖 [AI Worker] Model response:', newText);
-
-    // Extract number from response
-    const numberMatch = newText.match(/\d+/);
-    if (numberMatch) {
-      const scriptIndex = parseInt(numberMatch[0]) - 1;
-
-      if (scriptIndex >= 0 && scriptIndex < scripts.length) {
-        const matchedScript = scripts[scriptIndex];
-
-        // Extract parameters from command
-        const parameters = extractParameters(command, matchedScript);
-
-        sendResponse(messageId, 'COMMAND_RESULT', {
-          matched: true,
-          script: matchedScript,
-          parameters,
-          confidence: 0.8,
-          reasoning: 'Matched using Granite 4.0 model'
-        });
-        return;
-      }
-    }
-
-    // No match found
-    sendResponse(messageId, 'COMMAND_RESULT', {
-      matched: false,
-      message: 'Model did not provide clear match',
-      rawResponse: newText
-    });
+    sendResponse(messageId, 'COMMAND_RESULT', result);
   } catch (error) {
     console.error('❌ [AI Worker] Error processing command:', error);
     sendError(messageId, error.message, error.stack);
   }
+}
+
+// Classify intent using production-ready prompt
+async function classifyIntent(command, scripts, options) {
+  const scriptsJson = JSON.stringify(scripts.map(s => ({
+    id: s.id,
+    title: s.title,
+    description: s.description,
+    actions: s.steps?.map(step => step.action) || [],
+    parameters: s.parameters || {}
+  })));
+
+  const prompt = `You are Choreograph AI, an intelligent assistant that understands ALL types of user requests.
+
+## Your Capabilities
+You can handle 7 types of intents:
+1. INFORMATIONAL - Answer questions, provide information
+2. ACTION - Perform browser automation (navigate, click, fill forms)
+3. EXTRACTION - Scrape/extract data from web pages
+4. ANALYSIS - Analyze, compare, or summarize data
+5. CONVERSATIONAL - Greetings, thanks, chitchat
+6. CONFIGURATION - Change settings, manage scripts
+7. META - Help requests, capability questions
+
+## Available Automation Scripts
+${scriptsJson}
+
+## User Utterance
+"${command}"
+
+## Task
+Classify the intent, extract entities, and (if ACTION intent) match to appropriate script.
+
+## Response Format (JSON only, no markdown)
+{
+  "intent": {
+    "primary_category": "INFORMATIONAL|ACTION|EXTRACTION|ANALYSIS|CONVERSATIONAL|CONFIGURATION|META",
+    "subcategory": "<specific type>",
+    "confidence": 0.0-1.0
+  },
+  "entities": {
+    "urls": [],
+    "text": [],
+    "numbers": []
+  },
+  "routing": {
+    "handler": "llm|script_executor|help_system|config_manager",
+    "script_match": {
+      "script_id": "<id or null>",
+      "confidence": 0.0-1.0,
+      "reasoning": "<why matched>"
+    }
+  },
+  "parameters": {}
+}
+
+## Classification Rules
+1. Question words (what/how/why) → INFORMATIONAL
+2. Action verbs (go/click/fill) → ACTION
+3. Extract/scrape verbs → EXTRACTION
+4. Analyze/compare verbs → ANALYSIS
+5. Hello/thanks/bye → CONVERSATIONAL
+6. Set/change config → CONFIGURATION
+7. System questions → META
+
+Examples:
+"What is AI?" → {"intent":{"primary_category":"INFORMATIONAL","subcategory":"DEFINITION","confidence":0.95},"routing":{"handler":"llm"}}
+"Go to google.com" → {"intent":{"primary_category":"ACTION","subcategory":"NAVIGATION","confidence":0.98},"routing":{"handler":"script_executor","script_match":{"script_id":"<id>","confidence":0.95}}}
+"Thanks!" → {"intent":{"primary_category":"CONVERSATIONAL","subcategory":"THANKS","confidence":1.0},"routing":{"handler":"llm"}}
+
+Respond with JSON:`;
+
+  // Tokenize and generate
+  const inputs = tokenizer(prompt);
+  const outputs = await model.generate({
+    ...inputs,
+    max_new_tokens: options.maxTokens || 250,
+    do_sample: false,
+    temperature: options.temperature || 0.3
+  });
+
+  // Decode output
+  const generatedText = tokenizer.decode(outputs[0], { skip_special_tokens: true });
+  const newText = generatedText.slice(prompt.length).trim();
+  console.log('🤖 [AI Worker] Classification response:', newText);
+
+  // Try to parse JSON response
+  try {
+    // Remove markdown code blocks if present
+    let jsonText = newText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+
+    // Try to find JSON object in response
+    const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      jsonText = jsonMatch[0];
+    }
+
+    const parsed = JSON.parse(jsonText);
+    return parsed;
+  } catch (parseError) {
+    console.warn('⚠️ [AI Worker] Failed to parse JSON response, using fallback');
+    return fallbackClassification(command, scripts);
+  }
+}
+
+// Fallback classification if JSON parsing fails
+function fallbackClassification(command, scripts) {
+  const lowerCommand = command.toLowerCase();
+
+  // Check for question words
+  if (lowerCommand.match(/^(what|how|why|when|where|who|which|can you explain|tell me about)/)) {
+    return {
+      intent: { primary_category: 'INFORMATIONAL', subcategory: 'GENERAL', confidence: 0.7 },
+      entities: { urls: [], text: [command], numbers: [] },
+      routing: { handler: 'llm', script_match: { script_id: null, confidence: 0, reasoning: 'Question detected' } },
+      parameters: {}
+    };
+  }
+
+  // Check for conversational
+  if (lowerCommand.match(/^(hello|hi|hey|thanks|thank you|bye|goodbye)/)) {
+    return {
+      intent: { primary_category: 'CONVERSATIONAL', subcategory: 'GREETING', confidence: 0.9 },
+      entities: { urls: [], text: [], numbers: [] },
+      routing: { handler: 'llm', script_match: { script_id: null, confidence: 0, reasoning: 'Social phrase' } },
+      parameters: {}
+    };
+  }
+
+  // Check for meta
+  if (lowerCommand.match(/(what can you do|help|show commands|capabilities)/)) {
+    return {
+      intent: { primary_category: 'META', subcategory: 'CAPABILITIES', confidence: 0.9 },
+      entities: { urls: [], text: [], numbers: [] },
+      routing: { handler: 'help_system', script_match: { script_id: null, confidence: 0, reasoning: 'Help request' } },
+      parameters: {}
+    };
+  }
+
+  // Default to ACTION for script matching
+  return {
+    intent: { primary_category: 'ACTION', subcategory: 'GENERAL', confidence: 0.6 },
+    entities: { urls: extractUrls(command), text: [], numbers: [] },
+    routing: { handler: 'script_executor', script_match: { script_id: null, confidence: 0, reasoning: 'Default action intent' } },
+    parameters: {}
+  };
+}
+
+// Route to appropriate handler based on intent
+async function routeToHandler(classification, command, scripts, options) {
+  const { intent, routing } = classification;
+
+  switch (routing.handler) {
+    case 'script_executor':
+      // ACTION intent - match to scripts
+      return await handleActionIntent(classification, command, scripts);
+
+    case 'llm':
+      // INFORMATIONAL, EXTRACTION, ANALYSIS, CONVERSATIONAL - generate LLM response
+      return await handleLLMIntent(classification, command, options);
+
+    case 'help_system':
+      // META intent - provide help
+      return handleMetaIntent(classification, command);
+
+    case 'config_manager':
+      // CONFIGURATION intent - handle config changes
+      return handleConfigIntent(classification, command);
+
+    default:
+      return {
+        matched: false,
+        intent_category: intent.primary_category,
+        message: `Handler ${routing.handler} not yet implemented`,
+        classification
+      };
+  }
+}
+
+// Handle ACTION intents - match to scripts
+async function handleActionIntent(classification, command, scripts) {
+  const { routing, entities, parameters } = classification;
+
+  // If model already matched a script
+  if (routing.script_match?.script_id && routing.script_match.confidence > 0.5) {
+    const matchedScript = scripts.find(s => s.id === routing.script_match.script_id);
+    if (matchedScript) {
+      return {
+        matched: true,
+        intent_category: 'ACTION',
+        script: matchedScript,
+        confidence: routing.script_match.confidence,
+        parameters: parameters || extractParameters(command, matchedScript),
+        reasoning: routing.script_match.reasoning,
+        classification
+      };
+    }
+  }
+
+  // Fallback: Try simple matching
+  if (scripts.length === 0) {
+    return {
+      matched: false,
+      intent_category: 'ACTION',
+      message: 'No scripts available',
+      classification
+    };
+  }
+
+  // Simple keyword matching fallback
+  const lowerCommand = command.toLowerCase();
+  let bestMatch = null;
+  let bestScore = 0;
+
+  for (const script of scripts) {
+    const title = (script.title || '').toLowerCase();
+    const description = (script.description || '').toLowerCase();
+    let score = 0;
+
+    if (lowerCommand.includes(title)) score += 0.8;
+    if (lowerCommand.includes(description)) score += 0.6;
+
+    const words = lowerCommand.split(/\s+/);
+    for (const word of words) {
+      if (word.length < 3) continue;
+      if (title.includes(word)) score += 0.3;
+      if (description.includes(word)) score += 0.2;
+    }
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = script;
+    }
+  }
+
+  if (bestMatch && bestScore > 0.4) {
+    return {
+      matched: true,
+      intent_category: 'ACTION',
+      script: bestMatch,
+      confidence: Math.min(bestScore, 0.9),
+      parameters: extractParameters(command, bestMatch),
+      reasoning: 'Matched using keyword fallback',
+      classification
+    };
+  }
+
+  return {
+    matched: false,
+    intent_category: 'ACTION',
+    message: 'No matching script found',
+    classification
+  };
+}
+
+// Handle INFORMATIONAL, EXTRACTION, ANALYSIS, CONVERSATIONAL intents - generate LLM response
+async function handleLLMIntent(classification, command, options) {
+  const { intent } = classification;
+  const category = intent.primary_category;
+
+  let responsePrompt = '';
+
+  switch (category) {
+    case 'INFORMATIONAL':
+      responsePrompt = `You are a helpful AI assistant. Answer this question concisely:\n\nQuestion: ${command}\n\nAnswer:`;
+      break;
+
+    case 'EXTRACTION':
+      responsePrompt = `User wants to extract data: "${command}"\n\nProvide a brief guide on how to extract this data using browser developer tools or explain what data they want:\n\nResponse:`;
+      break;
+
+    case 'ANALYSIS':
+      responsePrompt = `User wants to analyze data: "${command}"\n\nProvide a brief explanation of how to perform this analysis or what insights they're looking for:\n\nResponse:`;
+      break;
+
+    case 'CONVERSATIONAL':
+      const subcategory = intent.subcategory || 'GENERAL';
+      if (subcategory === 'GREETING' || subcategory === 'THANKS') {
+        return {
+          matched: true,
+          intent_category: category,
+          response: getConversationalResponse(subcategory),
+          classification
+        };
+      }
+      responsePrompt = `Respond naturally to: "${command}"\n\nResponse:`;
+      break;
+
+    default:
+      responsePrompt = `${command}\n\nResponse:`;
+  }
+
+  // Generate response using LLM
+  const inputs = tokenizer(responsePrompt);
+  const outputs = await model.generate({
+    ...inputs,
+    max_new_tokens: options.responseTokens || 100,
+    do_sample: true,
+    temperature: 0.7,
+    top_p: 0.9
+  });
+
+  const generatedText = tokenizer.decode(outputs[0], { skip_special_tokens: true });
+  const response = generatedText.slice(responsePrompt.length).trim();
+
+  return {
+    matched: true,
+    intent_category: category,
+    response: response,
+    classification
+  };
+}
+
+// Handle META intents - provide help
+function handleMetaIntent(classification, command) {
+  const { intent } = classification;
+  const subcategory = intent.subcategory || 'HELP';
+
+  let response = '';
+
+  switch (subcategory) {
+    case 'CAPABILITIES':
+      response = `I'm Choreograph AI! I can help you with:
+
+🤖 **Browser Automation**: Navigate websites, click buttons, fill forms
+📊 **Data Extraction**: Scrape data from web pages
+💬 **Questions**: Answer general questions
+⚙️ **Configuration**: Manage scripts and settings
+
+Try commands like:
+• "Go to amazon.com"
+• "What is machine learning?"
+• "Show available scripts"`;
+      break;
+
+    case 'HELP':
+      response = `**Choreograph Help**
+
+Available commands:
+• "show available scripts" - List all automation scripts
+• "show available tasks" - List all workflows
+• "model status" - Check AI model status
+• Natural language commands for automation
+
+Upload scripts in the settings page to create custom automations!`;
+      break;
+
+    case 'STATUS':
+      response = `✅ AI model is loaded and ready!\n🧠 Using Granite 4.0 (IBM's micro language model)\n💻 Running on ${self.navigator?.gpu ? 'WebGPU' : 'WebAssembly'}`;
+      break;
+
+    default:
+      response = 'How can I help you? Try asking "What can you do?" or "Show available scripts"';
+  }
+
+  return {
+    matched: true,
+    intent_category: 'META',
+    response: response,
+    classification
+  };
+}
+
+// Handle CONFIGURATION intents
+function handleConfigIntent(classification, command) {
+  const { entities } = classification;
+
+  // For now, return guidance (actual config changes would need UI confirmation)
+  return {
+    matched: true,
+    intent_category: 'CONFIGURATION',
+    response: 'Configuration changes require confirmation. Please use the Settings page to modify system settings.',
+    requires_confirmation: true,
+    classification
+  };
+}
+
+// Get conversational response
+function getConversationalResponse(subcategory) {
+  const responses = {
+    'GREETING': 'Hello! I\'m Choreograph AI. How can I help you today?',
+    'THANKS': 'You\'re welcome! Let me know if you need anything else.',
+    'FAREWELL': 'Goodbye! Feel free to come back anytime.',
+    'ACKNOWLEDGMENT': 'Got it!',
+    'APOLOGY': 'No problem at all!'
+  };
+
+  return responses[subcategory] || 'I\'m here to help!';
+}
+
+// Extract URLs from text
+function extractUrls(text) {
+  const urlRegex = /(https?:\/\/[^\s]+)|(www\.[^\s]+)|([a-z0-9-]+\.(com|org|net|io|dev|ai)[^\s]*)/gi;
+  const matches = text.match(urlRegex);
+  return matches || [];
 }
 
 // Extract parameters from natural language command

@@ -434,7 +434,8 @@ class DeskAgentPopup {
             command,
             scripts,
             options: {
-              maxTokens: 10,
+              maxTokens: 250,        // Increased for intent classification
+              responseTokens: 100,   // For LLM-generated responses
               temperature: 0.3
             }
           });
@@ -452,51 +453,91 @@ class DeskAgentPopup {
         result = await this.fallbackScriptMatching(command, scripts);
       }
 
-      if (result.matched) {
-        const { script, confidence, parameters } = result;
-
-        const confidencePercent = ((confidence || 0.5) * 100).toFixed(1);
-
-        // Store parameters for execution
-        this.lastMatchedParameters = parameters || {};
-
-        let parametersInfo = '';
-        if (parameters && Object.keys(parameters).length > 0) {
-          parametersInfo = `<div style="font-size: 11px; color: #666; margin-top: 5px;">
-            Parameters: ${JSON.stringify(parameters)}
-          </div>`;
-        }
-
-        const suggestion = `
-          <div class="script-suggestion">
-            <div class="script-suggestion-title">📋 Found matching script (${confidencePercent}% match)</div>
-            <div><strong>${script.title || script.fileName}</strong></div>
-            <div style="font-size: 12px; margin-top: 5px;">
-              ${script.description || `${script.steps?.length || 0} steps`}
-            </div>
-            ${parametersInfo}
-            <div class="script-suggestion-actions">
-              <button class="script-suggestion-btn btn-execute-script" data-script-id="${script.id}">
-                Execute Now
-              </button>
-            </div>
-          </div>
-        `;
-
-        this.addMessage('agent', suggestion, true);
-        this.attachExecuteHandlers();
-      } else {
-        this.addMessage('agent', `
-          I couldn't find a matching script for your command.<br><br>
-          Try:<br>
-          • "show available scripts" to see all scripts<br>
-          • Upload more scripts in settings<br>
-          • Rephrase your command
-        `, true);
-      }
+      // Handle result based on intent category
+      await this.handleIntentResult(result);
     } catch (error) {
       console.error('NLP processing error:', error);
       this.addMessage('agent', `Error: ${error.message}`);
+    }
+  }
+
+  async handleIntentResult(result) {
+    const { matched, intent_category, response, script, confidence, parameters, classification } = result;
+
+    // Log intent for debugging
+    if (intent_category) {
+      console.log(`📊 Intent: ${intent_category}`, classification);
+    }
+
+    // Handle different intent types
+    switch (intent_category) {
+      case 'INFORMATIONAL':
+      case 'EXTRACTION':
+      case 'ANALYSIS':
+      case 'CONVERSATIONAL':
+      case 'META':
+      case 'CONFIGURATION':
+        // Display LLM-generated response
+        if (response) {
+          const iconMap = {
+            'INFORMATIONAL': '💡',
+            'EXTRACTION': '📊',
+            'ANALYSIS': '📈',
+            'CONVERSATIONAL': '💬',
+            'META': 'ℹ️',
+            'CONFIGURATION': '⚙️'
+          };
+          const icon = iconMap[intent_category] || '🤖';
+          this.addMessage('agent', `${icon} ${response}`, true);
+        } else {
+          this.addMessage('agent', 'I understand your request, but I need more information to help you.');
+        }
+        break;
+
+      case 'ACTION':
+      default:
+        // Handle ACTION intents (script matching) - original behavior
+        if (matched && script) {
+          const confidencePercent = ((confidence || 0.5) * 100).toFixed(1);
+
+          // Store parameters for execution
+          this.lastMatchedParameters = parameters || {};
+
+          let parametersInfo = '';
+          if (parameters && Object.keys(parameters).length > 0) {
+            parametersInfo = `<div style="font-size: 11px; color: #666; margin-top: 5px;">
+              Parameters: ${JSON.stringify(parameters)}
+            </div>`;
+          }
+
+          const suggestion = `
+            <div class="script-suggestion">
+              <div class="script-suggestion-title">📋 Found matching script (${confidencePercent}% match)</div>
+              <div><strong>${script.title || script.fileName}</strong></div>
+              <div style="font-size: 12px; margin-top: 5px;">
+                ${script.description || `${script.steps?.length || 0} steps`}
+              </div>
+              ${parametersInfo}
+              <div class="script-suggestion-actions">
+                <button class="script-suggestion-btn btn-execute-script" data-script-id="${script.id}">
+                  Execute Now
+                </button>
+              </div>
+            </div>
+          `;
+
+          this.addMessage('agent', suggestion, true);
+          this.attachExecuteHandlers();
+        } else {
+          this.addMessage('agent', `
+            I couldn't find a matching script for your command.<br><br>
+            Try:<br>
+            • "show available scripts" to see all scripts<br>
+            • Upload more scripts in settings<br>
+            • Rephrase your command
+          `, true);
+        }
+        break;
     }
   }
 
@@ -540,13 +581,17 @@ class DeskAgentPopup {
     if (bestScore > 0.3) {
       return {
         matched: true,
+        intent_category: 'ACTION',
         script: bestMatch,
         confidence: Math.min(bestScore, 0.9),
         reasoning: 'Text matching'
       };
     }
 
-    return { matched: false };
+    return {
+      matched: false,
+      intent_category: 'ACTION'
+    };
   }
 
   async executeScriptById(scriptId, customParameters = null) {
