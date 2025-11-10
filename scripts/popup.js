@@ -145,33 +145,58 @@ class DeskAgentPopup {
   }
 
   sendWorkerMessage(type, data = {}) {
+    console.log('📨 [Popup] sendWorkerMessage() START');
+    console.log('   Type:', type);
+    console.log('   Data keys:', Object.keys(data));
+    console.log('   Port connected:', !!this.aiWorkerPort);
+
     return new Promise((resolve, reject) => {
       if (!this.aiWorkerPort) {
+        console.error('❌ [Popup] Worker port not connected!');
         reject(new Error('Worker port not connected'));
         return;
       }
 
       const requestId = ++this.workerMessageId;
+      console.log('🆔 [Popup] Generated requestId:', requestId);
+
       const timeout = setTimeout(() => {
+        console.error('⏰ [Popup] Worker message TIMEOUT for requestId:', requestId);
         this.pendingWorkerMessages.delete(requestId);
         reject(new Error('Worker message timeout'));
       }, 300000); // 5 minutes for model loading
 
       this.pendingWorkerMessages.set(requestId, { resolve, reject, timeout });
+      console.log('💾 [Popup] Stored pending request:', requestId);
+      console.log('📊 [Popup] Total pending requests:', this.pendingWorkerMessages.size);
 
       // Send through port to background/offscreen
-      this.aiWorkerPort.postMessage({ type, data, requestId });
+      console.log('📤 [Popup] Sending message through port...');
+      try {
+        this.aiWorkerPort.postMessage({ type, data, requestId });
+        console.log('✅ [Popup] Message sent successfully to port');
+      } catch (error) {
+        console.error('❌ [Popup] Error sending message:', error);
+        clearTimeout(timeout);
+        this.pendingWorkerMessages.delete(requestId);
+        reject(error);
+      }
     });
   }
 
   handleWorkerMessage(message) {
+    console.log('📬 [Popup] handleWorkerMessage() called');
+    console.log('   Message:', message);
+
     const { messageId, requestId, type, data, error } = message;
 
     // Use requestId (port messages) or messageId (legacy) as the identifier
     const msgId = requestId || messageId;
+    console.log('🆔 [Popup] Message ID:', msgId, 'Type:', type);
 
     // Handle progress updates (no msgId required)
     if (type === 'PROGRESS' && data) {
+      console.log('📊 [Popup] Progress update:', data);
       const progress = Math.round(data.progress || 0);
       this.updateModelStatus('loading', `Loading ${data.file}: ${progress}%`);
       return;
@@ -179,6 +204,7 @@ class DeskAgentPopup {
 
     // Handle model status updates from background/offscreen
     if (type === 'MODEL_STATUS') {
+      console.log('📊 [Popup] Model status update:', data);
       if (data && data.loaded) {
         this.modelLoaded = true;
         this.isModelLoading = false;
@@ -191,16 +217,26 @@ class DeskAgentPopup {
     }
 
     // Handle pending message responses
+    console.log('🔍 [Popup] Checking pending requests for msgId:', msgId);
+    console.log('📊 [Popup] Pending requests:', Array.from(this.pendingWorkerMessages.keys()));
+
     if (msgId && this.pendingWorkerMessages.has(msgId)) {
+      console.log('✅ [Popup] Found pending request for msgId:', msgId);
       const pending = this.pendingWorkerMessages.get(msgId);
       clearTimeout(pending.timeout);
       this.pendingWorkerMessages.delete(msgId);
 
       if (error) {
+        console.error('❌ [Popup] Resolving with error:', error);
         pending.reject(new Error(error.message));
       } else {
+        console.log('✅ [Popup] Resolving with data');
         pending.resolve({ type, data });
       }
+    } else if (msgId) {
+      console.warn('⚠️ [Popup] No pending request found for msgId:', msgId);
+    } else {
+      console.warn('⚠️ [Popup] Message has no ID');
     }
   }
 
@@ -241,32 +277,50 @@ class DeskAgentPopup {
   }
 
   async sendCommand() {
+    console.log('🚀 [Popup] sendCommand() called');
     const input = document.getElementById('commandInput');
     const command = input.value.trim();
 
-    if (!command || this.isProcessing) return;
+    console.log('📝 [Popup] Command:', command);
+    console.log('🔒 [Popup] isProcessing:', this.isProcessing);
+
+    if (!command || this.isProcessing) {
+      console.warn('⚠️ [Popup] Command rejected - empty or already processing');
+      return;
+    }
 
     // Clear input
     input.value = '';
 
     // Add user message
     this.addMessage('user', command);
+    console.log('👤 [Popup] User message added to UI');
 
     // Set processing state
     this.setProcessing(true);
+    console.log('⏳ [Popup] Processing state set to true');
 
     try {
       // Handle special commands
-      if (await this.handleSpecialCommand(command)) {
+      console.log('🔍 [Popup] Checking for special commands...');
+      const isSpecial = await this.handleSpecialCommand(command);
+      console.log('🔍 [Popup] Is special command:', isSpecial);
+
+      if (isSpecial) {
+        console.log('✅ [Popup] Special command handled, returning');
         return;
       }
 
       // Process NLP command
+      console.log('🤖 [Popup] Processing NLP command...');
       await this.processNLPCommand(command);
+      console.log('✅ [Popup] NLP command processing complete');
     } catch (error) {
-      console.error('Error processing command:', error);
+      console.error('❌ [Popup] Error processing command:', error);
+      console.error('❌ [Popup] Error stack:', error.stack);
       this.addMessage('agent', `Error: ${error.message}`);
     } finally {
+      console.log('🏁 [Popup] Finally block - setting processing to false');
       this.setProcessing(false);
     }
   }
@@ -467,16 +521,26 @@ class DeskAgentPopup {
   }
 
   async processNLPCommand(command) {
+    console.log('🧠 [Popup] processNLPCommand() START - command:', command);
     this.addMessage('agent', 'Processing your command...');
+    console.log('💬 [Popup] Added "Processing..." message to UI');
 
     try {
       // Get available scripts (may be empty - that's OK for non-ACTION intents)
+      console.log('📂 [Popup] Getting stored scripts...');
       const scripts = await this.getStoredScripts();
+      console.log('📂 [Popup] Retrieved scripts:', scripts.length, 'scripts');
 
       // Try using AI model if loaded
       let result = null;
+      console.log('🔍 [Popup] Checking AI model availability...');
+      console.log('   modelLoaded:', this.modelLoaded);
+      console.log('   aiWorkerPort:', !!this.aiWorkerPort);
+
       if (this.modelLoaded && this.aiWorkerPort) {
+        console.log('✅ [Popup] AI model available, sending to worker...');
         try {
+          console.log('📤 [Popup] Calling sendWorkerMessage...');
           const response = await this.sendWorkerMessage('PROCESS_COMMAND', {
             command,
             scripts,
@@ -496,23 +560,30 @@ class DeskAgentPopup {
             console.warn('⚠️ [Popup] Unexpected response format:', response);
           }
         } catch (error) {
-          console.error('AI worker processing failed, falling back to text matching:', error);
+          console.error('❌ [Popup] AI worker processing failed, falling back to text matching:', error);
+          console.error('❌ [Popup] Error stack:', error.stack);
         }
       } else {
-        console.log('⚠️ [Popup] Model not loaded or port not connected. modelLoaded:', this.modelLoaded, 'aiWorkerPort:', !!this.aiWorkerPort);
+        console.warn('⚠️ [Popup] Model not loaded or port not connected. modelLoaded:', this.modelLoaded, 'aiWorkerPort:', !!this.aiWorkerPort);
       }
 
       // Fallback to text matching if AI model not available or failed
       if (!result) {
+        console.log('🔄 [Popup] No result from AI, using fallback matching...');
         result = await this.fallbackScriptMatching(command, scripts);
+        console.log('🔄 [Popup] Fallback result:', result);
       }
 
       // Handle result based on intent category
+      console.log('🎯 [Popup] Handling intent result...');
       await this.handleIntentResult(result);
+      console.log('✅ [Popup] Intent result handled');
     } catch (error) {
-      console.error('NLP processing error:', error);
+      console.error('❌ [Popup] NLP processing error:', error);
+      console.error('❌ [Popup] Error stack:', error.stack);
       this.addMessage('agent', `Error: ${error.message}`);
     }
+    console.log('🧠 [Popup] processNLPCommand() END');
   }
 
   async handleIntentResult(result) {
