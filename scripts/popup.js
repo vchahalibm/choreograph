@@ -4,8 +4,8 @@ class DeskAgentPopup {
     this.messages = [];
     this.isProcessing = false;
 
-    // AI Worker state
-    this.aiWorker = null;
+    // AI Worker state (via offscreen document)
+    this.aiWorkerPort = null;
     this.modelLoaded = false;
     this.isModelLoading = false;
     this.workerMessageId = 0;
@@ -39,7 +39,14 @@ class DeskAgentPopup {
       });
     });
 
-    // Initialize AI Worker
+    // Listen for MODEL_STATUS broadcasts from background
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.type === 'MODEL_STATUS') {
+        this.handleWorkerMessage(message);
+      }
+    });
+
+    // Initialize AI Worker connection
     this.initializeAIWorker();
 
     // Disable input until model loads
@@ -49,31 +56,61 @@ class DeskAgentPopup {
     this.loadMessages();
   }
 
-  initializeAIWorker() {
+  async initializeAIWorker() {
     try {
-      // Create AI worker from bundled file
-      this.aiWorker = new Worker(chrome.runtime.getURL('scripts/ai-worker.bundled.js'));
+      // Connect to background script which manages the offscreen document
+      this.aiWorkerPort = chrome.runtime.connect({ name: 'ai-worker-port' });
 
-      // Set up message listener
-      this.aiWorker.addEventListener('message', (event) => {
-        this.handleWorkerMessage(event.data);
+      // Set up message listener for port
+      this.aiWorkerPort.onMessage.addListener((message) => {
+        this.handleWorkerMessage(message);
       });
 
-      // Set up error listener
-      this.aiWorker.addEventListener('error', (error) => {
-        console.error('AI Worker error:', error);
-        this.updateModelStatus('error', 'Worker error: ' + error.message);
-        this.setInputEnabled(true); // Enable input even on error
+      // Set up disconnect listener
+      this.aiWorkerPort.onDisconnect.addListener(() => {
+        console.warn('⚠️ AI Worker port disconnected');
+        this.aiWorkerPort = null;
       });
 
-      console.log('✅ AI Worker initialized in popup');
+      console.log('✅ Connected to AI Worker via offscreen document');
 
-      // Automatically load the model
-      this.loadAIModel();
+      // Check if model is already loaded in offscreen document
+      await this.checkOffscreenModelStatus();
     } catch (error) {
-      console.error('Failed to initialize AI worker:', error);
-      this.updateModelStatus('error', 'Failed to initialize worker');
+      console.error('Failed to initialize AI worker connection:', error);
+      this.updateModelStatus('error', 'Failed to connect to AI worker');
       this.setInputEnabled(true); // Enable input anyway (will fall back to text matching)
+    }
+  }
+
+  async checkOffscreenModelStatus() {
+    try {
+      // Ask background script about offscreen model status
+      const status = await chrome.runtime.sendMessage({
+        type: 'CHECK_OFFSCREEN_STATUS'
+      });
+
+      if (status && status.modelLoaded) {
+        // Model already loaded in offscreen document
+        this.modelLoaded = true;
+        this.isModelLoading = false;
+        this.updateModelStatus('ready', '✅ AI model ready (cached)');
+        this.setInputEnabled(true);
+        console.log('✅ Model already loaded in offscreen document');
+      } else if (status && status.modelLoading) {
+        // Model currently loading
+        this.isModelLoading = true;
+        this.updateModelStatus('loading', 'Loading Granite 4.0 AI model...');
+        this.setInputEnabled(false);
+        console.log('⏳ Model loading in offscreen document');
+      } else {
+        // Model not loaded, trigger load
+        this.loadAIModel();
+      }
+    } catch (error) {
+      console.error('Failed to check offscreen model status:', error);
+      // Fall back to loading
+      this.loadAIModel();
     }
   }
 
@@ -85,21 +122,19 @@ class DeskAgentPopup {
 
     this.isModelLoading = true;
     this.updateModelStatus('loading', 'Loading Granite 4.0 AI model...');
+    this.setInputEnabled(false);
 
     try {
-      const response = await this.sendWorkerMessage('LOAD_MODEL', {
-        modelId: 'onnx-community/granite-4.0-micro-ONNX-web'
+      // Request model reload in offscreen document
+      const response = await chrome.runtime.sendMessage({
+        type: 'RELOAD_MODEL'
       });
 
-      if (response.type === 'MODEL_LOADED' && response.data.success) {
-        this.modelLoaded = true;
-        this.isModelLoading = false;
-        const device = response.data.device || 'unknown';
-        this.updateModelStatus('ready', `✅ AI model ready (${device})`);
-        this.setInputEnabled(true);
-        console.log('✅ Granite 4.0 model loaded successfully');
+      if (response && response.success) {
+        console.log('✅ Model load triggered in offscreen document');
+        // Will receive MODEL_STATUS update through background
       } else {
-        throw new Error('Model load failed');
+        throw new Error('Model load request failed');
       }
     } catch (error) {
       console.error('Failed to load AI model:', error);
@@ -111,38 +146,55 @@ class DeskAgentPopup {
 
   sendWorkerMessage(type, data = {}) {
     return new Promise((resolve, reject) => {
-      if (!this.aiWorker) {
-        reject(new Error('Worker not initialized'));
+      if (!this.aiWorkerPort) {
+        reject(new Error('Worker port not connected'));
         return;
       }
 
-      const messageId = ++this.workerMessageId;
+      const requestId = ++this.workerMessageId;
       const timeout = setTimeout(() => {
-        this.pendingWorkerMessages.delete(messageId);
+        this.pendingWorkerMessages.delete(requestId);
         reject(new Error('Worker message timeout'));
       }, 300000); // 5 minutes for model loading
 
-      this.pendingWorkerMessages.set(messageId, { resolve, reject, timeout });
+      this.pendingWorkerMessages.set(requestId, { resolve, reject, timeout });
 
-      this.aiWorker.postMessage({ type, data, messageId });
+      // Send through port to background/offscreen
+      this.aiWorkerPort.postMessage({ type, data, requestId });
     });
   }
 
   handleWorkerMessage(message) {
-    const { messageId, type, data, error } = message;
+    const { messageId, requestId, type, data, error } = message;
 
-    // Handle progress updates (no messageId required)
+    // Use requestId (port messages) or messageId (legacy) as the identifier
+    const msgId = requestId || messageId;
+
+    // Handle progress updates (no msgId required)
     if (type === 'PROGRESS' && data) {
       const progress = Math.round(data.progress || 0);
       this.updateModelStatus('loading', `Loading ${data.file}: ${progress}%`);
       return;
     }
 
+    // Handle model status updates from background/offscreen
+    if (type === 'MODEL_STATUS') {
+      if (data && data.loaded) {
+        this.modelLoaded = true;
+        this.isModelLoading = false;
+        const device = data.device || 'unknown';
+        this.updateModelStatus('ready', `✅ AI model ready (${device})`);
+        this.setInputEnabled(true);
+        console.log('✅ Model loaded in offscreen document');
+      }
+      return;
+    }
+
     // Handle pending message responses
-    if (messageId && this.pendingWorkerMessages.has(messageId)) {
-      const pending = this.pendingWorkerMessages.get(messageId);
+    if (msgId && this.pendingWorkerMessages.has(msgId)) {
+      const pending = this.pendingWorkerMessages.get(msgId);
       clearTimeout(pending.timeout);
-      this.pendingWorkerMessages.delete(messageId);
+      this.pendingWorkerMessages.delete(msgId);
 
       if (error) {
         pending.reject(new Error(error.message));

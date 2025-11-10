@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Choreograph AI Worker - Offscreen Document</title>
+</head>
+<body>
+  <!--
+    This is an offscreen document that runs in the background.
+    It's hidden from the user and persists even when popup closes.
+
+    Purpose: Host the AI Worker and Granite 4.0 model persistently
+    Lifecycle: Created on extension install, stays alive until extension reload
+  -->
+  <script src="scripts/offscreen-manager.js"></script>
+</body>
+</html>

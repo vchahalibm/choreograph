@@ -1,5 +1,5 @@
 // Choreograph Background Service Worker
-// AI model now runs in popup context with automatic loading
+// AI model now runs in offscreen document (persistent context)
 
 class DeskAgentBackground {
   constructor() {
@@ -10,8 +10,11 @@ class DeskAgentBackground {
     this.debuggerVersion = '1.3';
     this.keepDebuggerAttached = true; // Don't auto-detach debugger
 
+    // Offscreen document state
+    this.offscreenDocumentReady = false;
+    this.modelLoadedInOffscreen = false;
+
     // Legacy: AI model runs in config page (for testing/settings)
-    // Popup now has its own AI worker that loads automatically
     this.modelReadyInConfig = false;
 
     this.init();
@@ -19,12 +22,20 @@ class DeskAgentBackground {
 
   async init() {
     console.log('Choreograph Background initialized');
-    console.log('💡 Popup handles AI model loading automatically');
+    console.log('💡 AI model runs in offscreen document (persistent)');
+
+    // Create offscreen document for persistent AI worker
+    await this.ensureOffscreenDocument();
 
     // Listen for messages from popup and content scripts
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       this.handleMessage(message, sender, sendResponse);
       return true; // Keep channel open for async response
+    });
+
+    // Listen for port connections (for streaming AI responses)
+    chrome.runtime.onConnect.addListener((port) => {
+      this.handlePortConnection(port);
     });
 
     // Listen for debugger events
@@ -39,6 +50,73 @@ class DeskAgentBackground {
 
     // Initialize script executor
     this.scriptExecutor = new ScriptExecutor(this);
+  }
+
+  // Offscreen Document Management
+  async ensureOffscreenDocument() {
+    try {
+      // Check if offscreen document already exists
+      const existingContexts = await chrome.runtime.getContexts({
+        contextTypes: ['OFFSCREEN_DOCUMENT']
+      });
+
+      if (existingContexts.length > 0) {
+        console.log('✅ Offscreen document already exists');
+        this.offscreenDocumentReady = true;
+        return;
+      }
+
+      // Create offscreen document
+      console.log('🚀 Creating offscreen document...');
+      await chrome.offscreen.createDocument({
+        url: 'offscreen.html',
+        reasons: ['WORKERS'], // For Web Workers
+        justification: 'Load and run Granite 4.0 AI model persistently across popup lifecycle'
+      });
+
+      this.offscreenDocumentReady = true;
+      console.log('✅ Offscreen document created successfully');
+    } catch (error) {
+      console.error('❌ Failed to create offscreen document:', error);
+      console.error('💡 Note: Offscreen API requires Chrome 109+');
+      this.offscreenDocumentReady = false;
+    }
+  }
+
+  async checkOffscreenModelStatus() {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: 'CHECK_MODEL_STATUS'
+      });
+      return response;
+    } catch (error) {
+      console.log('⚠️ Could not check offscreen model status:', error.message);
+      return { loaded: false, loading: false };
+    }
+  }
+
+  handlePortConnection(port) {
+    if (port.name === 'ai-worker-port') {
+      console.log('🔌 [Background] AI worker port connected from popup');
+
+      port.onMessage.addListener(async (message) => {
+        // Forward message to offscreen document
+        if (message.type === 'PROCESS_COMMAND') {
+          await this.ensureOffscreenDocument();
+
+          // Create a port to offscreen document
+          const offscreenPort = chrome.runtime.connect({ name: 'offscreen-relay' });
+
+          // Forward request to offscreen
+          offscreenPort.postMessage(message);
+
+          // Forward response back to popup
+          offscreenPort.onMessage.addListener((response) => {
+            port.postMessage(response);
+          });
+        }
+      });
+    }
   }
 
   async handleMessage(message, sender, sendResponse) {
@@ -80,6 +158,37 @@ class DeskAgentBackground {
           this.nlpModel = { ready: true, device: message.device };
           console.log(`✅ AI model ready in config page on ${message.device}`);
           sendResponse({ success: true });
+          break;
+
+        case 'MODEL_STATUS':
+          // Offscreen document notifies model status
+          this.modelLoadedInOffscreen = message.loaded;
+          console.log(`📊 [Background] Model status from offscreen: ${message.loaded ? 'loaded' : 'not loaded'} on ${message.device || 'unknown'}`);
+          sendResponse({ success: true });
+          break;
+
+        case 'CHECK_OFFSCREEN_STATUS':
+          // Popup asking if offscreen is ready
+          const status = await this.checkOffscreenModelStatus();
+          sendResponse({
+            offscreenReady: this.offscreenDocumentReady,
+            modelLoaded: status.loaded,
+            modelLoading: status.loading
+          });
+          break;
+
+        case 'RELOAD_MODEL':
+          // Popup requesting to reload model in offscreen document
+          try {
+            await this.ensureOffscreenDocument();
+            const reloadResponse = await chrome.runtime.sendMessage({
+              type: 'RELOAD_MODEL'
+            });
+            sendResponse({ success: true });
+          } catch (error) {
+            console.error('Failed to reload model:', error);
+            sendResponse({ success: false, error: error.message });
+          }
           break;
 
         default:
