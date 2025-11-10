@@ -14,6 +14,10 @@ class DeskAgentBackground {
     this.offscreenDocumentReady = false;
     this.modelLoadedInOffscreen = false;
 
+    // Persistent offscreen port
+    this.offscreenPort = null;
+    this.offscreenPortReady = false;
+
     // Legacy: AI model runs in config page (for testing/settings)
     this.modelReadyInConfig = false;
 
@@ -26,6 +30,9 @@ class DeskAgentBackground {
 
     // Create offscreen document for persistent AI worker
     await this.ensureOffscreenDocument();
+
+    // Establish persistent offscreen port connection
+    await this.connectToOffscreen();
 
     // Listen for messages from popup and content scripts
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -95,6 +102,52 @@ class DeskAgentBackground {
     }
   }
 
+  // Establish persistent connection to offscreen document
+  async connectToOffscreen() {
+    try {
+      console.log('🔌 [Background] Connecting to offscreen document...');
+
+      this.offscreenPort = chrome.runtime.connect({ name: 'offscreen-relay' });
+      this.offscreenPortReady = true;
+
+      // Store popup port mappings for responses
+      this.popupPortMappings = new Map(); // requestId -> popup port
+
+      // Handle messages from offscreen
+      this.offscreenPort.onMessage.addListener((response) => {
+        console.log('📥 [Background] Received from offscreen:', response.type, 'requestId:', response.requestId);
+
+        // Find the popup port that sent this request
+        const popupPort = this.popupPortMappings.get(response.requestId);
+        if (popupPort) {
+          console.log('📤 [Background] Forwarding response to popup');
+          try {
+            popupPort.postMessage(response);
+            // Clean up mapping
+            this.popupPortMappings.delete(response.requestId);
+          } catch (error) {
+            console.error('❌ [Background] Error forwarding to popup:', error);
+          }
+        } else {
+          console.warn('⚠️ [Background] No popup port found for requestId:', response.requestId);
+        }
+      });
+
+      // Handle disconnect
+      this.offscreenPort.onDisconnect.addListener(() => {
+        console.warn('⚠️ [Background] Offscreen port disconnected, reconnecting...');
+        this.offscreenPortReady = false;
+        // Reconnect after a delay
+        setTimeout(() => this.connectToOffscreen(), 1000);
+      });
+
+      console.log('✅ [Background] Connected to offscreen document');
+    } catch (error) {
+      console.error('❌ [Background] Failed to connect to offscreen:', error);
+      this.offscreenPortReady = false;
+    }
+  }
+
   handlePortConnection(port) {
     if (port.name === 'ai-worker-port') {
       console.log('🔌 [Background] AI worker port connected from popup');
@@ -106,20 +159,38 @@ class DeskAgentBackground {
 
           await this.ensureOffscreenDocument();
 
-          // Create a port to offscreen document
-          const offscreenPort = chrome.runtime.connect({ name: 'offscreen-relay' });
+          // Ensure offscreen port is ready
+          if (!this.offscreenPortReady || !this.offscreenPort) {
+            console.warn('⚠️ [Background] Offscreen port not ready, connecting...');
+            await this.connectToOffscreen();
+          }
 
-          console.log('📤 [Background] Forwarding to offscreen...');
+          // Store popup port for response routing
+          this.popupPortMappings.set(message.requestId, port);
+          console.log('💾 [Background] Stored popup port mapping for requestId:', message.requestId);
 
-          // Forward request to offscreen
-          offscreenPort.postMessage(message);
+          console.log('📤 [Background] Forwarding to offscreen via persistent port...');
 
-          // Forward response back to popup
-          offscreenPort.onMessage.addListener((response) => {
-            console.log('📥 [Background] Received response from offscreen:', response.type, 'requestId:', response.requestId);
-            console.log('📤 [Background] Forwarding response back to popup');
-            port.postMessage(response);
-          });
+          // Forward request to offscreen via persistent port
+          try {
+            this.offscreenPort.postMessage(message);
+          } catch (error) {
+            console.error('❌ [Background] Error sending to offscreen:', error);
+            // Try to reconnect
+            await this.connectToOffscreen();
+            this.offscreenPort.postMessage(message);
+          }
+        }
+      });
+
+      // Clean up mappings when popup disconnects
+      port.onDisconnect.addListener(() => {
+        console.log('🔌 [Background] Popup port disconnected');
+        // Remove any mappings for this port
+        for (const [requestId, mappedPort] of this.popupPortMappings.entries()) {
+          if (mappedPort === port) {
+            this.popupPortMappings.delete(requestId);
+          }
         }
       });
     }
