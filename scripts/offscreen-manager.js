@@ -127,7 +127,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Listen for connections from background (for streaming responses)
 chrome.runtime.onConnect.addListener((port) => {
-  console.log('🔌 [Offscreen] Port connected:', port.name);
+  console.log('🔌 [Offscreen] Port connection attempt:', port.name);
+
+  // ONLY handle offscreen-relay connections from background
+  if (port.name !== 'offscreen-relay') {
+    console.log('⚠️ [Offscreen] Ignoring port connection:', port.name, '(not offscreen-relay)');
+    return;
+  }
+
+  console.log('✅ [Offscreen] Accepted offscreen-relay connection');
 
   port.onMessage.addListener((message) => {
     const { type, data, requestId } = message;
@@ -168,7 +176,7 @@ chrome.runtime.onConnect.addListener((port) => {
   });
 
   port.onDisconnect.addListener(() => {
-    console.log('🔌 [Offscreen] Port disconnected');
+    console.log('🔌 [Offscreen] offscreen-relay port disconnected');
   });
 });
 
