@@ -85,6 +85,11 @@ function handleWorkerMessage(message) {
     const { port, requestId } = pendingRequests.get(messageId);
     pendingRequests.delete(messageId);
 
+    console.log(`📤 [Offscreen] Forwarding response to popup. RequestId: ${requestId}, Type: ${type}, HasData: ${!!data}`);
+    if (data) {
+      console.log(`📦 [Offscreen] Response data:`, data);
+    }
+
     // Send response back through the port
     port.postMessage({
       requestId: requestId,
@@ -92,6 +97,8 @@ function handleWorkerMessage(message) {
       data: data,
       error: error
     });
+  } else if (messageId) {
+    console.warn(`⚠️ [Offscreen] No pending request found for messageId: ${messageId}`);
   }
 }
 
@@ -129,6 +136,7 @@ chrome.runtime.onConnect.addListener((port) => {
 
     if (type === 'PROCESS_COMMAND') {
       if (!modelLoaded) {
+        console.warn('⚠️ [Offscreen] Model not loaded yet, rejecting request');
         port.postMessage({
           requestId: requestId,
           type: 'ERROR',
@@ -136,6 +144,8 @@ chrome.runtime.onConnect.addListener((port) => {
         });
         return;
       }
+
+      console.log(`🚀 [Offscreen] Processing command: "${data?.command}" (requestId: ${requestId})`);
 
       // Forward to AI worker
       const workerMsgId = ++workerMessageId;
@@ -145,6 +155,8 @@ chrome.runtime.onConnect.addListener((port) => {
         port: port,
         requestId: requestId
       });
+
+      console.log(`🔀 [Offscreen] Mapped requestId ${requestId} → workerMsgId ${workerMsgId}`);
 
       // Send to worker
       aiWorker.postMessage({

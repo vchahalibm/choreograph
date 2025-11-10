@@ -102,16 +102,22 @@ class DeskAgentBackground {
       port.onMessage.addListener(async (message) => {
         // Forward message to offscreen document
         if (message.type === 'PROCESS_COMMAND') {
+          console.log('🔄 [Background] Received PROCESS_COMMAND from popup, requestId:', message.requestId);
+
           await this.ensureOffscreenDocument();
 
           // Create a port to offscreen document
           const offscreenPort = chrome.runtime.connect({ name: 'offscreen-relay' });
+
+          console.log('📤 [Background] Forwarding to offscreen...');
 
           // Forward request to offscreen
           offscreenPort.postMessage(message);
 
           // Forward response back to popup
           offscreenPort.onMessage.addListener((response) => {
+            console.log('📥 [Background] Received response from offscreen:', response.type, 'requestId:', response.requestId);
+            console.log('📤 [Background] Forwarding response back to popup');
             port.postMessage(response);
           });
         }

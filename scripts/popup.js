@@ -475,7 +475,7 @@ class DeskAgentPopup {
 
       // Try using AI model if loaded
       let result = null;
-      if (this.modelLoaded && this.aiWorker) {
+      if (this.modelLoaded && this.aiWorkerPort) {
         try {
           const response = await this.sendWorkerMessage('PROCESS_COMMAND', {
             command,
@@ -487,12 +487,19 @@ class DeskAgentPopup {
             }
           });
 
+          console.log('🔍 [Popup] Received response from worker:', response);
+
           if (response.type === 'COMMAND_RESULT' && response.data) {
             result = response.data;
+            console.log('✅ [Popup] Result data:', result);
+          } else {
+            console.warn('⚠️ [Popup] Unexpected response format:', response);
           }
         } catch (error) {
           console.error('AI worker processing failed, falling back to text matching:', error);
         }
+      } else {
+        console.log('⚠️ [Popup] Model not loaded or port not connected. modelLoaded:', this.modelLoaded, 'aiWorkerPort:', !!this.aiWorkerPort);
       }
 
       // Fallback to text matching if AI model not available or failed
