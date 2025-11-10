@@ -418,13 +418,8 @@ class DeskAgentPopup {
     this.addMessage('agent', 'Processing your command...');
 
     try {
-      // Get available scripts
+      // Get available scripts (may be empty - that's OK for non-ACTION intents)
       const scripts = await this.getStoredScripts();
-
-      if (scripts.length === 0) {
-        this.addMessage('agent', 'No scripts available. Upload scripts in the settings page.');
-        return;
-      }
 
       // Try using AI model if loaded
       let result = null;
@@ -529,21 +524,52 @@ class DeskAgentPopup {
           this.addMessage('agent', suggestion, true);
           this.attachExecuteHandlers();
         } else {
-          this.addMessage('agent', `
+          // Use custom message if provided, otherwise default
+          const errorMessage = result.message || `
             I couldn't find a matching script for your command.<br><br>
             Try:<br>
             • "show available scripts" to see all scripts<br>
             • Upload more scripts in settings<br>
             • Rephrase your command
-          `, true);
+          `;
+          this.addMessage('agent', errorMessage, true);
         }
         break;
     }
   }
 
   async fallbackScriptMatching(command, scripts) {
-    // Simple keyword-based matching as fallback
+    // Smart fallback: detect intent type even without AI
     const lowerCommand = command.toLowerCase();
+
+    // Detect CONVERSATIONAL intents
+    if (lowerCommand.match(/^(hello|hi|hey|thanks|thank you|bye|goodbye|good morning|good evening)$/i)) {
+      return {
+        matched: true,
+        intent_category: 'CONVERSATIONAL',
+        response: this.getConversationalResponseFallback(lowerCommand)
+      };
+    }
+
+    // Detect INFORMATIONAL intents (questions)
+    if (lowerCommand.match(/^(what|how|why|when|where|who|which|can you explain|tell me about)/i)) {
+      return {
+        matched: true,
+        intent_category: 'INFORMATIONAL',
+        response: 'I can help answer questions! However, my AI model seems to be having trouble right now. Try asking again, or rephrase your question.'
+      };
+    }
+
+    // Detect META intents
+    if (lowerCommand.match(/(what can you do|help|show commands|capabilities|model status)/i)) {
+      return {
+        matched: true,
+        intent_category: 'META',
+        response: this.getMetaResponseFallback(lowerCommand)
+      };
+    }
+
+    // For ACTION intents, try script matching
     let bestMatch = null;
     let bestScore = 0;
 
@@ -590,8 +616,53 @@ class DeskAgentPopup {
 
     return {
       matched: false,
-      intent_category: 'ACTION'
+      intent_category: 'ACTION',
+      message: scripts.length === 0 ? 'No scripts available. Upload scripts in the settings page.' : 'No matching script found.'
     };
+  }
+
+  getConversationalResponseFallback(command) {
+    const lowerCommand = command.toLowerCase();
+    if (lowerCommand.match(/^(hello|hi|hey|good morning|good evening)/i)) {
+      return 'Hello! I\'m Choreograph AI. How can I help you today?';
+    }
+    if (lowerCommand.match(/^(thanks|thank you)/i)) {
+      return 'You\'re welcome! Let me know if you need anything else.';
+    }
+    if (lowerCommand.match(/^(bye|goodbye)/i)) {
+      return 'Goodbye! Feel free to come back anytime.';
+    }
+    return 'I\'m here to help!';
+  }
+
+  getMetaResponseFallback(command) {
+    const lowerCommand = command.toLowerCase();
+    if (lowerCommand.match(/model status/i)) {
+      const status = this.modelLoaded ? 'loaded and ready' : (this.isModelLoading ? 'currently loading' : 'not loaded');
+      return `AI Model Status: ${status}`;
+    }
+    if (lowerCommand.match(/what can you do|capabilities/i)) {
+      return `I'm Choreograph AI! I can help you with:
+
+🤖 **Browser Automation**: Navigate websites, click buttons, fill forms
+📊 **Data Extraction**: Scrape data from web pages
+💬 **Questions**: Answer general questions
+⚙️ **Configuration**: Manage scripts and settings
+
+Try commands like:
+• "Go to amazon.com" (if you have scripts)
+• "What is machine learning?"
+• "Show available scripts"`;
+    }
+    return `**Choreograph Help**
+
+Available commands:
+• "show available scripts" - List all automation scripts
+• "show available tasks" - List all workflows
+• "model status" - Check AI model status
+• Natural language commands for automation
+
+Upload scripts in the settings page to create custom automations!`;
   }
 
   async executeScriptById(scriptId, customParameters = null) {
