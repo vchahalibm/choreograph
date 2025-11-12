@@ -176,6 +176,15 @@ Intent (pick one):
 
 Answer with just the category name:`;
 
+  console.log('📝 [AI Worker] ===== PROMPT SENT TO MODEL =====');
+  console.log(prompt);
+  console.log('📝 [AI Worker] ===== END PROMPT =====');
+  console.log('⚙️ [AI Worker] Generation settings:', {
+    max_new_tokens: 20,
+    do_sample: false,
+    temperature: 0.1
+  });
+
   // Tokenize and generate with very short output
   const inputs = tokenizer(prompt);
   const outputs = await model.generate({
@@ -188,7 +197,10 @@ Answer with just the category name:`;
   // Decode output
   const generatedText = tokenizer.decode(outputs[0], { skip_special_tokens: true });
   const newText = generatedText.slice(prompt.length).trim();
-  console.log('🤖 [AI Worker] Classification response:', newText);
+
+  console.log('🤖 [AI Worker] ===== MODEL RESPONSE =====');
+  console.log('Raw response:', newText);
+  console.log('🤖 [AI Worker] ===== END RESPONSE =====');
 
   // Parse simple text response and map to full classification
   const upperText = newText.toUpperCase();
@@ -201,10 +213,11 @@ Answer with just the category name:`;
 
   // If model gave valid category, build classification; otherwise fallback
   if (category) {
-    console.log('✅ [AI Worker] Model classified as:', category);
+    console.log('✅ [AI Worker] Model successfully classified as:', category);
     return buildSimpleClassification(category, command, scripts);
   } else {
-    console.warn('⚠️ [AI Worker] Could not parse model response, using fallback');
+    console.warn('⚠️ [AI Worker] Could not parse model response, using fallback classification');
+    console.warn('⚠️ [AI Worker] Response was:', newText);
     return fallbackClassification(command, scripts);
   }
 }
