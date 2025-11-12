@@ -493,9 +493,8 @@ class DeskAgentPopup {
       let result = null;
       console.log('🔍 [Popup] Checking AI model availability...');
       console.log('   modelLoaded:', this.modelLoaded);
-      console.log('   aiWorkerPort:', !!this.aiWorkerPort);
 
-      if (this.modelLoaded && this.aiWorkerPort) {
+      if (this.modelLoaded) {
         console.log('✅ [Popup] AI model available, sending to worker...');
         try {
           console.log('📤 [Popup] Calling sendWorkerMessage...');
@@ -522,7 +521,7 @@ class DeskAgentPopup {
           console.error('❌ [Popup] Error stack:', error.stack);
         }
       } else {
-        console.warn('⚠️ [Popup] Model not loaded or port not connected. modelLoaded:', this.modelLoaded, 'aiWorkerPort:', !!this.aiWorkerPort);
+        console.warn('⚠️ [Popup] Model not loaded. modelLoaded:', this.modelLoaded);
       }
 
       // Fallback to text matching if AI model not available or failed
