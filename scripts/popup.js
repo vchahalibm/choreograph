@@ -4,12 +4,9 @@ class DeskAgentPopup {
     this.messages = [];
     this.isProcessing = false;
 
-    // AI Worker state (via offscreen document)
-    this.aiWorkerPort = null;
+    // AI Worker state (via sendMessage - no ports!)
     this.modelLoaded = false;
     this.isModelLoading = false;
-    this.workerMessageId = 0;
-    this.pendingWorkerMessages = new Map();
 
     this.init();
   }
@@ -57,30 +54,10 @@ class DeskAgentPopup {
   }
 
   async initializeAIWorker() {
-    try {
-      // Connect to background script which manages the offscreen document
-      this.aiWorkerPort = chrome.runtime.connect({ name: 'ai-worker-port' });
+    console.log('✅ [Popup] Using chrome.runtime.sendMessage for communication (no ports!)');
 
-      // Set up message listener for port
-      this.aiWorkerPort.onMessage.addListener((message) => {
-        this.handleWorkerMessage(message);
-      });
-
-      // Set up disconnect listener
-      this.aiWorkerPort.onDisconnect.addListener(() => {
-        console.warn('⚠️ AI Worker port disconnected');
-        this.aiWorkerPort = null;
-      });
-
-      console.log('✅ Connected to AI Worker via offscreen document');
-
-      // Check if model is already loaded in offscreen document
-      await this.checkOffscreenModelStatus();
-    } catch (error) {
-      console.error('Failed to initialize AI worker connection:', error);
-      this.updateModelStatus('error', 'Failed to connect to AI worker');
-      this.setInputEnabled(true); // Enable input anyway (will fall back to text matching)
-    }
+    // Check if model is already loaded in offscreen document
+    await this.checkOffscreenModelStatus();
   }
 
   async checkOffscreenModelStatus() {
@@ -144,44 +121,25 @@ class DeskAgentPopup {
     }
   }
 
-  sendWorkerMessage(type, data = {}) {
+  async sendWorkerMessage(type, data = {}) {
     console.log('📨 [Popup] sendWorkerMessage() START');
     console.log('   Type:', type);
     console.log('   Data keys:', Object.keys(data));
-    console.log('   Port connected:', !!this.aiWorkerPort);
 
-    return new Promise((resolve, reject) => {
-      if (!this.aiWorkerPort) {
-        console.error('❌ [Popup] Worker port not connected!');
-        reject(new Error('Worker port not connected'));
-        return;
-      }
+    try {
+      // Use simple sendMessage instead of ports
+      console.log('📤 [Popup] Sending message to background...');
+      const response = await chrome.runtime.sendMessage({
+        type: type,
+        data: data
+      });
 
-      const requestId = ++this.workerMessageId;
-      console.log('🆔 [Popup] Generated requestId:', requestId);
-
-      const timeout = setTimeout(() => {
-        console.error('⏰ [Popup] Worker message TIMEOUT for requestId:', requestId);
-        this.pendingWorkerMessages.delete(requestId);
-        reject(new Error('Worker message timeout'));
-      }, 300000); // 5 minutes for model loading
-
-      this.pendingWorkerMessages.set(requestId, { resolve, reject, timeout });
-      console.log('💾 [Popup] Stored pending request:', requestId);
-      console.log('📊 [Popup] Total pending requests:', this.pendingWorkerMessages.size);
-
-      // Send through port to background/offscreen
-      console.log('📤 [Popup] Sending message through port...');
-      try {
-        this.aiWorkerPort.postMessage({ type, data, requestId });
-        console.log('✅ [Popup] Message sent successfully to port');
-      } catch (error) {
-        console.error('❌ [Popup] Error sending message:', error);
-        clearTimeout(timeout);
-        this.pendingWorkerMessages.delete(requestId);
-        reject(error);
-      }
-    });
+      console.log('✅ [Popup] Received response from background:', response);
+      return response;
+    } catch (error) {
+      console.error('❌ [Popup] Error sending message:', error);
+      throw error;
+    }
   }
 
   handleWorkerMessage(message) {

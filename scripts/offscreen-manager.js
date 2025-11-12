@@ -82,21 +82,22 @@ function handleWorkerMessage(message) {
 
   // Forward worker response to pending request
   if (messageId && pendingRequests.has(messageId)) {
-    const { port, requestId } = pendingRequests.get(messageId);
+    const { callback } = pendingRequests.get(messageId);
     pendingRequests.delete(messageId);
 
-    console.log(`📤 [Offscreen] Forwarding response to popup. RequestId: ${requestId}, Type: ${type}, HasData: ${!!data}`);
+    console.log(`📤 [Offscreen] Forwarding response. Type: ${type}, HasData: ${!!data}`);
     if (data) {
       console.log(`📦 [Offscreen] Response data:`, data);
     }
 
-    // Send response back through the port
-    port.postMessage({
-      requestId: requestId,
-      type: type,
-      data: data,
-      error: error
-    });
+    // Call the callback to send response back
+    if (callback) {
+      callback({
+        type: type,
+        data: data,
+        error: error
+      });
+    }
   } else if (messageId) {
     console.warn(`⚠️ [Offscreen] No pending request found for messageId: ${messageId}`);
   }
@@ -122,63 +123,53 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'PROCESS_COMMAND') {
+    console.log('📥 [Offscreen] Received PROCESS_COMMAND via sendMessage');
+
+    if (!modelLoaded) {
+      console.warn('⚠️ [Offscreen] Model not loaded yet, rejecting request');
+      sendResponse({
+        type: 'ERROR',
+        error: { message: 'Model not loaded yet. Please wait...' }
+      });
+      return true;
+    }
+
+    const { data } = message;
+    console.log(`🚀 [Offscreen] Processing command: "${data?.command}"`);
+
+    // Forward to AI worker
+    const workerMsgId = ++workerMessageId;
+
+    // Store callback for when worker responds
+    const responseCallback = (response) => {
+      console.log('✅ [Offscreen] Sending response back to background');
+      sendResponse(response);
+    };
+
+    // Store in pending requests
+    pendingRequests.set(workerMsgId, {
+      callback: responseCallback
+    });
+
+    console.log(`🔀 [Offscreen] Mapped workerMsgId ${workerMsgId}`);
+
+    // Send to worker
+    aiWorker.postMessage({
+      type: 'PROCESS_COMMAND',
+      data: data,
+      messageId: workerMsgId
+    });
+
+    // Return true to indicate we'll call sendResponse asynchronously
+    return true;
+  }
+
   return false;
 });
 
-// Listen for connections from background (for streaming responses)
-chrome.runtime.onConnect.addListener((port) => {
-  console.log('🔌 [Offscreen] Port connection attempt:', port.name);
-
-  // ONLY handle offscreen-relay connections from background
-  if (port.name !== 'offscreen-relay') {
-    console.log('⚠️ [Offscreen] Ignoring port connection:', port.name, '(not offscreen-relay)');
-    return;
-  }
-
-  console.log('✅ [Offscreen] Accepted offscreen-relay connection');
-
-  port.onMessage.addListener((message) => {
-    const { type, data, requestId } = message;
-
-    console.log(`📥 [Offscreen] Port message: ${type}, requestId: ${requestId}`);
-
-    if (type === 'PROCESS_COMMAND') {
-      if (!modelLoaded) {
-        console.warn('⚠️ [Offscreen] Model not loaded yet, rejecting request');
-        port.postMessage({
-          requestId: requestId,
-          type: 'ERROR',
-          error: { message: 'Model not loaded yet. Please wait...' }
-        });
-        return;
-      }
-
-      console.log(`🚀 [Offscreen] Processing command: "${data?.command}" (requestId: ${requestId})`);
-
-      // Forward to AI worker
-      const workerMsgId = ++workerMessageId;
-
-      // Store request mapping
-      pendingRequests.set(workerMsgId, {
-        port: port,
-        requestId: requestId
-      });
-
-      console.log(`🔀 [Offscreen] Mapped requestId ${requestId} → workerMsgId ${workerMsgId}`);
-
-      // Send to worker
-      aiWorker.postMessage({
-        type: 'PROCESS_COMMAND',
-        data: data,
-        messageId: workerMsgId
-      });
-    }
-  });
-
-  port.onDisconnect.addListener(() => {
-    console.log('🔌 [Offscreen] offscreen-relay port disconnected');
-  });
-});
+// Note: Removed port connection handling - now using chrome.runtime.sendMessage
+// which is more reliable for request-response patterns
 
 // Initialize worker when this script loads
 initializeWorker();
