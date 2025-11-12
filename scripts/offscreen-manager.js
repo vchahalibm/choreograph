@@ -106,6 +106,19 @@ function handleWorkerMessage(message) {
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('📬 [Offscreen] Received message:', message.type);
+  console.log('📬 [Offscreen] Sender:', sender.id, 'URL:', sender.url);
+
+  // Only accept PROCESS_COMMAND from background script, not from popup directly
+  // This prevents duplicate processing when popup broadcasts to all contexts
+  if (message.type === 'PROCESS_COMMAND') {
+    const isFromBackground = sender.url && sender.url.includes('/scripts/background.js');
+    const isFromServiceWorker = !sender.url && !sender.tab; // Service workers have no URL
+
+    if (!isFromBackground && !isFromServiceWorker) {
+      console.log('⚠️ [Offscreen] Ignoring PROCESS_COMMAND from non-background sender:', sender.url || 'popup');
+      return false; // Ignore messages from popup directly
+    }
+  }
 
   if (message.type === 'CHECK_MODEL_STATUS') {
     sendResponse({

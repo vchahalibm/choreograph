@@ -162,73 +162,27 @@ async function classifyIntent(command, scripts, options) {
     parameters: s.parameters || {}
   })));
 
-  const prompt = `You are Choreograph AI, an intelligent assistant that understands ALL types of user requests.
+  // Simplified prompt for small model - Granite 4.0 Micro struggles with complex JSON
+  // Using fallback classification is more reliable for this model size
+  const prompt = `Classify user intent:
 
-## Your Capabilities
-You can handle 7 types of intents:
-1. INFORMATIONAL - Answer questions, provide information
-2. ACTION - Perform browser automation (navigate, click, fill forms)
-3. EXTRACTION - Scrape/extract data from web pages
-4. ANALYSIS - Analyze, compare, or summarize data
-5. CONVERSATIONAL - Greetings, thanks, chitchat
-6. CONFIGURATION - Change settings, manage scripts
-7. META - Help requests, capability questions
+User: "${command}"
 
-## Available Automation Scripts
-${scriptsJson}
+Intent (pick one):
+1. INFORMATIONAL - questions about facts
+2. ACTION - browser automation commands
+3. CONVERSATIONAL - greetings, thanks
+4. META - help requests
 
-## User Utterance
-"${command}"
+Answer with just the category name:`;
 
-## Task
-Classify the intent, extract entities, and (if ACTION intent) match to appropriate script.
-
-## Response Format (JSON only, no markdown)
-{
-  "intent": {
-    "primary_category": "INFORMATIONAL|ACTION|EXTRACTION|ANALYSIS|CONVERSATIONAL|CONFIGURATION|META",
-    "subcategory": "<specific type>",
-    "confidence": 0.0-1.0
-  },
-  "entities": {
-    "urls": [],
-    "text": [],
-    "numbers": []
-  },
-  "routing": {
-    "handler": "llm|script_executor|help_system|config_manager",
-    "script_match": {
-      "script_id": "<id or null>",
-      "confidence": 0.0-1.0,
-      "reasoning": "<why matched>"
-    }
-  },
-  "parameters": {}
-}
-
-## Classification Rules
-1. Question words (what/how/why) → INFORMATIONAL
-2. Action verbs (go/click/fill) → ACTION
-3. Extract/scrape verbs → EXTRACTION
-4. Analyze/compare verbs → ANALYSIS
-5. Hello/thanks/bye → CONVERSATIONAL
-6. Set/change config → CONFIGURATION
-7. System questions → META
-
-Examples:
-"What is AI?" → {"intent":{"primary_category":"INFORMATIONAL","subcategory":"DEFINITION","confidence":0.95},"routing":{"handler":"llm"}}
-"Go to google.com" → {"intent":{"primary_category":"ACTION","subcategory":"NAVIGATION","confidence":0.98},"routing":{"handler":"script_executor","script_match":{"script_id":"<id>","confidence":0.95}}}
-"Thanks!" → {"intent":{"primary_category":"CONVERSATIONAL","subcategory":"THANKS","confidence":1.0},"routing":{"handler":"llm"}}
-
-Respond with JSON:`;
-
-  // Tokenize and generate
+  // Tokenize and generate with very short output
   const inputs = tokenizer(prompt);
   const outputs = await model.generate({
     ...inputs,
-    max_new_tokens: options.maxTokens || 250,
+    max_new_tokens: 20, // Just need one word
     do_sample: false,
-    temperature: options.temperature || 0.3
+    temperature: 0.1
   });
 
   // Decode output
@@ -236,26 +190,54 @@ Respond with JSON:`;
   const newText = generatedText.slice(prompt.length).trim();
   console.log('🤖 [AI Worker] Classification response:', newText);
 
-  // Try to parse JSON response
-  try {
-    // Remove markdown code blocks if present
-    let jsonText = newText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+  // Parse simple text response and map to full classification
+  const upperText = newText.toUpperCase();
+  let category = null;
 
-    // Try to find JSON object in response
-    const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      jsonText = jsonMatch[0];
-    }
+  if (upperText.includes('INFORMATIONAL')) category = 'INFORMATIONAL';
+  else if (upperText.includes('ACTION')) category = 'ACTION';
+  else if (upperText.includes('CONVERSATIONAL')) category = 'CONVERSATIONAL';
+  else if (upperText.includes('META')) category = 'META';
 
-    const parsed = JSON.parse(jsonText);
-    return parsed;
-  } catch (parseError) {
-    console.warn('⚠️ [AI Worker] Failed to parse JSON response, using fallback');
+  // If model gave valid category, build classification; otherwise fallback
+  if (category) {
+    console.log('✅ [AI Worker] Model classified as:', category);
+    return buildSimpleClassification(category, command, scripts);
+  } else {
+    console.warn('⚠️ [AI Worker] Could not parse model response, using fallback');
     return fallbackClassification(command, scripts);
   }
 }
 
-// Fallback classification if JSON parsing fails
+// Build simple classification from category
+function buildSimpleClassification(category, command, scripts) {
+  const classification = {
+    intent: {
+      primary_category: category,
+      subcategory: 'GENERAL',
+      confidence: 0.8
+    },
+    entities: {
+      urls: [],
+      text: [],
+      numbers: []
+    },
+    routing: {
+      handler: category === 'ACTION' ? 'script_executor' :
+                category === 'META' ? 'help_system' : 'llm',
+      script_match: {
+        script_id: null,
+        confidence: 0,
+        reasoning: 'Model classification without script matching'
+      }
+    },
+    parameters: {}
+  };
+
+  return classification;
+}
+
+// Fallback classification using pattern matching
 function fallbackClassification(command, scripts) {
   const lowerCommand = command.toLowerCase();
 
@@ -410,50 +392,41 @@ async function handleLLMIntent(classification, command, options) {
   const { intent } = classification;
   const category = intent.primary_category;
 
-  let responsePrompt = '';
+  // For the small Granite 4.0 Micro model, use predefined responses
+  // instead of attempting generation (model too small for quality responses)
+  let response = '';
 
   switch (category) {
     case 'INFORMATIONAL':
-      responsePrompt = `You are a helpful AI assistant. Answer this question concisely:\n\nQuestion: ${command}\n\nAnswer:`;
+      // Check for common questions with good predefined answers
+      const lowerCmd = command.toLowerCase();
+      if (lowerCmd.includes('machine learning') || lowerCmd.includes('ml')) {
+        response = 'Machine learning is a subset of artificial intelligence where systems learn from data to improve their performance without being explicitly programmed.';
+      } else if (lowerCmd.includes('granite') || lowerCmd.includes('model')) {
+        response = 'I\'m powered by IBM Granite 4.0 Micro, a compact language model optimized for intent classification and efficient browser automation tasks.';
+      } else if (lowerCmd.includes('choreograph')) {
+        response = 'Choreograph is an AI-powered browser automation assistant that helps you navigate websites, extract data, and automate repetitive tasks using natural language commands.';
+      } else {
+        response = 'I can help answer questions, but I work best with browser automation tasks. Try asking me to navigate to a website or extract data!';
+      }
       break;
 
     case 'EXTRACTION':
-      responsePrompt = `User wants to extract data: "${command}"\n\nProvide a brief guide on how to extract this data using browser developer tools or explain what data they want:\n\nResponse:`;
+      response = 'I can help extract data from web pages! To get started, navigate to the page you want to extract from, then tell me what data you need.';
       break;
 
     case 'ANALYSIS':
-      responsePrompt = `User wants to analyze data: "${command}"\n\nProvide a brief explanation of how to perform this analysis or what insights they're looking for:\n\nResponse:`;
+      response = 'I can assist with data analysis tasks. Please provide more details about what data you\'d like to analyze or compare.';
       break;
 
     case 'CONVERSATIONAL':
       const subcategory = intent.subcategory || 'GENERAL';
-      if (subcategory === 'GREETING' || subcategory === 'THANKS') {
-        return {
-          matched: true,
-          intent_category: category,
-          response: getConversationalResponse(subcategory),
-          classification
-        };
-      }
-      responsePrompt = `Respond naturally to: "${command}"\n\nResponse:`;
+      response = getConversationalResponse(subcategory);
       break;
 
     default:
-      responsePrompt = `${command}\n\nResponse:`;
+      response = 'I\'m here to help! Try asking me to navigate to a website, extract data, or ask a question.';
   }
-
-  // Generate response using LLM
-  const inputs = tokenizer(responsePrompt);
-  const outputs = await model.generate({
-    ...inputs,
-    max_new_tokens: options.responseTokens || 100,
-    do_sample: true,
-    temperature: 0.7,
-    top_p: 0.9
-  });
-
-  const generatedText = tokenizer.decode(outputs[0], { skip_special_tokens: true });
-  const response = generatedText.slice(responsePrompt.length).trim();
 
   return {
     matched: true,
