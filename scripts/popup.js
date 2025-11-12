@@ -858,8 +858,18 @@ Upload scripts in the settings page to create custom automations!`;
   }
 
   async getStoredScripts() {
-    const result = await chrome.storage.local.get(['jsonScripts']);
-    return result.jsonScripts || [];
+    console.log('📂 [Popup] getStoredScripts() called');
+    try {
+      console.log('📂 [Popup] Calling chrome.storage.local.get...');
+      const result = await chrome.storage.local.get(['jsonScripts']);
+      console.log('📂 [Popup] chrome.storage.local.get returned:', result);
+      const scripts = result.jsonScripts || [];
+      console.log('📂 [Popup] Returning', scripts.length, 'scripts');
+      return scripts;
+    } catch (error) {
+      console.error('❌ [Popup] getStoredScripts error:', error);
+      return [];
+    }
   }
 
   async getStoredTasks() {

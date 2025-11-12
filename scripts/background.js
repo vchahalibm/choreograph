@@ -169,6 +169,7 @@ class DeskAgentBackground {
         case 'PROCESS_COMMAND':
           // Popup requesting to process a command
           console.log('🔄 [Background] Received PROCESS_COMMAND from popup via sendMessage');
+          console.log('📦 [Background] Command data:', message.data?.command);
           try {
             await this.ensureOffscreenDocument();
 
@@ -179,10 +180,13 @@ class DeskAgentBackground {
               data: message.data
             });
 
-            console.log('✅ [Background] Received response from offscreen:', offscreenResponse);
+            console.log('✅ [Background] Received response from offscreen');
+            console.log('📦 [Background] Response type:', offscreenResponse?.type);
+            console.log('📦 [Background] Response has data:', !!offscreenResponse?.data);
             sendResponse(offscreenResponse);
           } catch (error) {
             console.error('❌ [Background] Error processing command:', error);
+            console.error('❌ [Background] Error stack:', error.stack);
             sendResponse({ type: 'ERROR', error: { message: error.message } });
           }
           break;
